@@ -40,7 +40,8 @@ async function modeledFlood(page) {
   await page.waitForFunction(()=>currentDataMode==='return-interval' && floodFrameState==='ready',{}, {timeout:90000});
 }
 const snapshot = page => page.evaluate(()=>{
-  const layer = window.NORTH_WILDWOOD_3D?.getMap()?.style?.getLayer('nw-flood-overlay');
+  const renderer = window.NORTH_WILDWOOD_3D;
+  const layer = renderer?.getMap()?.style?.getLayer(renderer.state().floodLayerId);
   const plane = layer?.implementation || layer;
   const status = document.getElementById('floodFrameStatus');
   return {index:currentHourIndex,stage:document.getElementById('stageText').textContent,
@@ -199,7 +200,7 @@ try {
         assert.equal(pending.flood,'loading');
         await releaseTextures(page);await waitDone(page);
         let after = await snapshot(page);
-        assert.equal(after.index,target);assert.equal(after.url,after.committedUrl);assert.equal(after.flood,'ready');
+        assert.equal(after.index,target);assert.ok(after.committedUrl);assert.equal(after.url,after.committedUrl);assert.equal(after.flood,'ready');
         checks.push({scenario:'held texture and selection commit together',before,pending,after});
 
         before = after;target = await differentIndex(page,[before.index]);
@@ -229,7 +230,7 @@ try {
         checks.push({scenario:'obsolete held texture cannot overwrite a newer selection',after});
 
         const canLoseContext = await page.evaluate(()=>{
-          const layer = NORTH_WILDWOOD_3D.getMap().style.getLayer('nw-flood-overlay');
+          const layer = NORTH_WILDWOOD_3D.getMap().style.getLayer(NORTH_WILDWOOD_3D.state().floodLayerId);
           window.__mapLoseContext=(layer.implementation || layer).gl.getExtension('WEBGL_lose_context');
           return !!window.__mapLoseContext;
         });

@@ -87,6 +87,19 @@ for (const caseName of ['optimized', 'failed', 'held', 'wrong-size']) {
   assert.equal(await recovery.loadPackedQueryGrid(png, webp, 2), grid);
   assert.deepEqual(inputs, caseName === 'optimized' ? [[webp, 5000]] : [[webp, 5000], [png, undefined]]);
 }
+// A decoded PNG is still unusable if its cells do not match the native grid.
+// Reject and retry it rather than silently sampling different map locations.
+let fallbackCalls = 0;
+const alignedGrid = {width:4,height:4,values:rgba};
+recovery.loadDepthQueryPng = async () => ++fallbackCalls === 1 ? {width:1,height:1} : alignedGrid;
+assert.equal(await recovery.loadPackedQueryGrid(png, '', 2), alignedGrid);
+assert.equal(fallbackCalls, 2);
+recovery.loadDepthQueryPng = async () => ({width:1,height:1});
+await assert.rejects(recovery.loadPackedQueryGrid(png, '', 2), /native raster dimensions/);
+vm.runInContext('depthQueryGridPromise = null;', recovery);
+await assert.rejects(recovery.getDepthQueryGrid(), /native raster dimensions/);
+recovery.loadDepthQueryPng = async () => alignedGrid;
+assert.equal(await recovery.getDepthQueryGrid(), alignedGrid, 'A misaligned image must not poison future queries');
 // The GeoTIFF fallback uses physical distances, including non-square cells.
 const cogLatitude = 39;
 const cogLongitude = -74.81;

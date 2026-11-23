@@ -210,25 +210,28 @@
         } finally {
           releaseDepth();
         }
-      })().catch(error => {
-        if (error?.name === "AbortError" || error?.name === "TimeoutError") {
+      })().then(record => {
+        // A canceled export stops only its wait. Complete shared-cache cleanup
+        // with the encoder so its late object URL cannot escape retirement.
+        if (cache !== bathtubStageOverlayCache) {
+          retireRasterObjectUrl(record?.url);
+          return null;
+        }
+        if (!record) {
           if (cache.get(key) === request) cache.delete(key);
+          return null;
+        }
+        return cacheBathtubStageOverlay(key, record);
+      }).catch(error => {
+        if (cache.get(key) === request) cache.delete(key);
+        if (error?.name === "AbortError" || error?.name === "TimeoutError") {
           throw error;
         }
         console.warn("Could not build Flood Stages with its Flood Depth uncertainty areas.", error);
         return null;
       });
       cache.set(key, request);
-      const record = await awaitRasterRequest(request);
-      if (cache !== bathtubStageOverlayCache) {
-        retireRasterObjectUrl(record?.url);
-        return null;
-      }
-      if (!record) {
-        cache.delete(key);
-        return null;
-      }
-      return cacheBathtubStageOverlay(key, record);
+      return awaitRasterRequest(request);
     }
 
     function cacheRasterComposite(cache, key, record, limit) {

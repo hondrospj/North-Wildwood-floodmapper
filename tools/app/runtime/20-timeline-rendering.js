@@ -184,8 +184,8 @@
         try {
           await ensureOverlayBounds(overlayUrl);
         } catch (err) {
-          toast(err.message);
-          return;
+          if (token === lastRenderToken) toast(err.message);
+          return false;
         }
 
         if (token !== lastRenderToken) return;
@@ -218,6 +218,8 @@
           if (typeof window !== "undefined" && window.NORTH_WILDWOOD_3D?.prepareFloodFrame &&
               !await window.NORTH_WILDWOOD_3D.prepareFloodFrame(nextLayer, frameMetadata, token)) return false;
           if (token !== lastRenderToken || pendingFloodLayer !== nextLayer || !map.hasLayer(nextLayer)) return false;
+          if (typeof window !== "undefined" && window.NORTH_WILDWOOD_3D?.commitFloodFrame &&
+              !window.NORTH_WILDWOOD_3D.commitFloodFrame(nextLayer, token)) return false;
           nextLayer.setOpacity(overlayOpacity);
           nextLayer._floodmapperFrame = frameMetadata;
           currentFloodLayer = nextLayer;
@@ -278,6 +280,8 @@
         if (typeof window !== "undefined" && window.NORTH_WILDWOOD_3D?.prepareFloodFrame &&
             !await window.NORTH_WILDWOOD_3D.prepareFloodFrame(nextLayer, frameMetadata, token)) return false;
         if (token !== lastRenderToken || pendingFloodLayer !== nextLayer || !map.hasLayer(nextLayer)) return false;
+        if (typeof window !== "undefined" && window.NORTH_WILDWOOD_3D?.commitFloodFrame &&
+            !window.NORTH_WILDWOOD_3D.commitFloodFrame(nextLayer, token)) return false;
         nextLayer.setOpacity(overlayOpacity);
         nextLayer._floodmapperFrame = frameMetadata;
         currentFloodLayer = nextLayer;
@@ -291,16 +295,33 @@
       });
     }
 
-    async function renderHour(index) {
-      cancelTimelineSelection();
-      if (!currentSeriesHours.length) return;
+    function ownPlaybackFrame(playback, token) {
+      playback.renderToken = token;
+      if (playback.restoreDisplay) return;
+      const savedState = floodFrameState;
+      const savedRecovery = document.body.dataset.floodFrameRecovery;
+      const { frameMessage, frameState } = document.getElementById("floodFrameStatus")?.dataset || {};
+      playback.restoreDisplay = () => {
+        floodFrameState = savedState;
+        document.body.dataset.floodFrame = savedState;
+        if (savedRecovery == null) delete document.body.dataset.floodFrameRecovery;
+        else document.body.dataset.floodFrameRecovery = savedRecovery;
+        setFloodFrameStatus(frameMessage || "", frameState || "info");
+        updatePersistentDepthQueryPopup();
+      };
+    }
 
-      const entry = currentSeriesHours[index];
+    async function renderHour(index, { playback = null, observedSelection = null } = {}) {
+      cancelTimelineSelection();
+      const previousSeries = currentSeriesHours;
+      const requestedSeries = observedSelection?.series || previousSeries;
+
+      const entry = requestedSeries[index];
       if (!entry) return;
 
       const previousHourIndex = currentHourIndex;
-      const requestedSeries = currentSeriesHours;
       const token = ++lastRenderToken;
+      if (playback) ownPlaybackFrame(playback, token);
       requestedTimelineSelection = { series: requestedSeries, index, token };
       // Keep the last displayed frame visible while its replacement loads.
       floodFrameState = "loading";
@@ -309,19 +330,26 @@
 
       const rawStage = getStageValue(entry);
       const displayStage = getOverlayStage(rawStage);
-      const hydraulicPhase = getHydraulicPhaseForEntry(entry, index, currentSeriesHours);
-      const observedDate = entry.isDailyMaximum && currentViewType === "observed-day" &&
+      const hydraulicPhase = getHydraulicPhaseForEntry(entry, index, requestedSeries);
+      const observedDate = !observedSelection && entry.isDailyMaximum && currentViewType === "observed-day" &&
         entry.observedDate !== selectedObservedDate ? entry.observedDate : null;
       const observedDay = observedDate ? getObservedDayRecord(observedDate) : null;
-      const rawSeries = observedDay ? buildObservedCanonicalSeries(observedDay, observedDate) : currentRawSeriesHours;
+      const rawSeries = observedSelection?.rawSeries ?? (observedDay ? buildObservedCanonicalSeries(observedDay, observedDate) : currentRawSeriesHours);
+      const slider = document.getElementById("hourSlider");
       const commitSelection = () => {
+        if (playback) playback.renderToken = null;
+        observedSelection?.commit();
         currentHourIndex = index;
         if (observedDay) {
           // The month-wide Daily Max slider can change the selected day.
           // Commit its date and tide context only when this frame is displayed.
           setObservedDaySelection(observedDate, observedDay);
           currentRawSeriesHours = rawSeries;
-          renderCalendar().catch(error => toast(error.message));
+        }
+        if (observedSelection || observedDay) renderCalendar().catch(error => toast(error.message));
+        if (playback) {
+          slider.value = String(index);
+          updateSliderProgress();
         }
         renderSelectionMeta(entry, rawStage, displayStage);
         renderTimelineMeta(entry);
@@ -329,9 +357,10 @@
 
       updatePersistentDepthQueryPopup({ useRenderedFlood: false });
 
-      const slider = document.getElementById("hourSlider");
-      slider.value = String(index);
-      updateSliderProgress();
+      if (!playback) {
+        slider.value = String(index);
+        updateSliderProgress();
+      }
 
       if (displayStage == null) {
         commitSelection();
@@ -351,12 +380,12 @@
       const physicsUiIsActive = Boolean(physicsAsset);
       const physicsDailyUiWasActive = document.body.classList.contains("physics-daily-maximum-active");
       const physicsDailyUiIsActive = Boolean(physicsAsset && entry?.isDailyMaximum);
-      document.body.classList.toggle("physics-forecast-active", physicsUiIsActive);
-      document.body.classList.toggle("physics-daily-maximum-active", physicsDailyUiIsActive);
-      if (
-        physicsUiWasActive !== physicsUiIsActive ||
-        physicsDailyUiWasActive !== physicsDailyUiIsActive
-      ) renderLegend();
+      const updatePhysicsLegend = () => {
+        document.body.classList.toggle("physics-forecast-active", physicsUiIsActive);
+        document.body.classList.toggle("physics-daily-maximum-active", physicsDailyUiIsActive);
+        if (physicsUiWasActive !== physicsUiIsActive || physicsDailyUiWasActive !== physicsDailyUiIsActive) renderLegend();
+      };
+      if (!playback) updatePhysicsLegend();
       const note = physicsAsset
         ? (entry?.isDailyMaximum
           ? (currentOverlayMode === "dynamic"
@@ -371,19 +400,23 @@
       const ready = await renderFloodFrameWithRetry(() => physicsAsset
         ? setPhysicsFloodLayer(physicsAsset, token, entry, hydraulicPhase)
         : setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token, entry, rawSeries), token);
-      if (token !== lastRenderToken || requestedSeries !== currentSeriesHours) return false;
+      if (token !== lastRenderToken || previousSeries !== currentSeriesHours) return false;
       if (!ready) {
+        if (playback) playback.renderToken = null;
         requestedTimelineSelection = null;
         currentHourIndex = previousHourIndex;
         slider.value = String(previousHourIndex);
         updateSliderProgress();
-        document.body.classList.toggle("physics-forecast-active", physicsUiWasActive);
-        document.body.classList.toggle("physics-daily-maximum-active", physicsDailyUiWasActive);
-        if (physicsUiWasActive !== physicsUiIsActive || physicsDailyUiWasActive !== physicsDailyUiIsActive) renderLegend();
+        if (!playback) {
+          document.body.classList.toggle("physics-forecast-active", physicsUiWasActive);
+          document.body.classList.toggle("physics-daily-maximum-active", physicsDailyUiWasActive);
+          if (physicsUiWasActive !== physicsUiIsActive || physicsDailyUiWasActive !== physicsDailyUiIsActive) renderLegend();
+        }
         reportFloodFrameFailure();
         return false;
       }
       requestedTimelineSelection = null;
+      if (playback) updatePhysicsLegend();
       commitSelection();
       updateNsiStructureImpactLayer();
       floodFrameState = "ready";

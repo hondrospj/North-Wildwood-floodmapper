@@ -686,7 +686,6 @@ function formatSelectedObservedDate(dateStr) {
         cell.textContent = value;
         btn.appendChild(cell);
       }
-      btn.setAttribute("aria-label", `#${event.rank} ${event.title}, ${stage}`);
       btn.addEventListener("click", () => {
         const closesDrawer = btn.closest("#topTidesModalList") && document.body.classList.contains("mobile-controls-open");
         // Close the parent before restoring focus from the child, so the

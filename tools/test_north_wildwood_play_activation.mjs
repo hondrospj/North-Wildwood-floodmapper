@@ -69,14 +69,16 @@ try {
     await page.locator('#playBtn').click();await page.locator('#playBtn').click();
   },2);
 
-  const speedButton = page.getByRole('button', { name: 'Double playback speed' });
+  const speedButton = page.getByRole('button', { name: '1× or 2× playback speed' });
   const expectSpeed = async (multiplier, label) => {
     const state = await speedButton.evaluate(button => ({
       label: button.textContent,
+      description: button.getAttribute('aria-description'),
       pressed: button.getAttribute('aria-pressed'),
       rate: playbackSpeedMultiplier,
     }));
-    assert.deepEqual(state, { label: `${multiplier}×`, pressed: String(multiplier === 2), rate: multiplier }, label);
+    assert.deepEqual(state, { label: `${multiplier}×`, description: `Current playback speed: ${multiplier}×`,
+      pressed: String(multiplier === 2), rate: multiplier }, label);
   };
   await page.evaluate(() => { playActivations = []; });
   await expectSpeed(1, 'Initially displays the current speed');

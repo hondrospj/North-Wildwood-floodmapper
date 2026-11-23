@@ -52,8 +52,9 @@ function installGridRoadImpacts(config) {
   function syncLayers() {
     const gl = window.NORTH_WILDWOOD_3D?.getMap?.();
     const useGl = Boolean(gl && document.body.classList.contains("map-3d-ready"));
-    if (map && leafletLayer && map.hasLayer(leafletLayer)) map.removeLayer(leafletLayer);
-    if (map && enabled && !useGl && renderedData.features.length) {
+    const showLeaflet = Boolean(map && enabled && !useGl && renderedData.features.length);
+    if (map && leafletLayer && !showLeaflet && map.hasLayer(leafletLayer)) map.removeLayer(leafletLayer);
+    if (showLeaflet) {
       if (!map.getPane("roadImpactsPane")) {
         map.createPane("roadImpactsPane");
         map.getPane("roadImpactsPane").style.zIndex = "705";
@@ -66,7 +67,7 @@ function installGridRoadImpacts(config) {
           style: { color: COLOR, weight: 4, opacity: 1, lineCap: "round", lineJoin: "round" }
         });
       }
-      leafletLayer.addTo(map);
+      if (!map.hasLayer(leafletLayer)) leafletLayer.addTo(map);
     }
     if (!useGl) return;
     if (glInstance !== gl) { glInstance = gl; glDataVersion = -1; }
@@ -226,7 +227,7 @@ function installGridRoadImpacts(config) {
       setStatus(features.length ? "Modeled road water depth > 0.5 ft" : "No road sections above 0.5 ft at this time.");
       document.body.dataset.roadImpactsState = "ready";
     } catch (error) {
-      if (!enabled || request !== revision) return;
+      if (!enabled || request !== revision || frameToken !== lastRenderToken || layer !== currentFloodLayer) return;
       publishData(EMPTY);
       setStatus("Road impacts failed. Toggle off/on to retry.");
       document.body.dataset.roadImpactsState = "failed";

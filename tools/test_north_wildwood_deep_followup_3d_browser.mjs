@@ -28,7 +28,7 @@ function track3dStartupTiming(button){
  },{capture:true,once:true});
  observer.observe(button,{attributes:true,attributeFilter:['aria-busy']});
 }
-function snapshot(){return page.evaluate(()=>{const gl=window.NORTH_WILDWOOD_3D.getMap(),source=gl?.getSource('nw-flood-drape-source');return{index:currentHourIndex,time:currentSeriesHours[currentHourIndex]?.timeUtc,url:currentFloodLayer?._url,sourceUrl:source?.url,sourceLoaded:source?.loaded(),frame:floodFrameState,mode:mapClickMode,state:window.NORTH_WILDWOOD_3D.state(),busy:document.querySelector('.nw-simple-view').getAttribute('aria-busy')};});}
+function snapshot(){return page.evaluate(()=>{const gl=window.NORTH_WILDWOOD_3D.getMap(),source=gl?.getSource(window.NORTH_WILDWOOD_3D.state().floodDrapeSourceId);return{index:currentHourIndex,time:currentSeriesHours[currentHourIndex]?.timeUtc,url:currentFloodLayer?._url,sourceUrl:source?.url,sourceLoaded:source?.loaded(),frame:floodFrameState,mode:mapClickMode,state:window.NORTH_WILDWOOD_3D.state(),busy:document.querySelector('.nw-simple-view').getAttribute('aria-busy')};});}
 try{
  await page.goto(base,{waitUntil:'domcontentloaded',timeout:90000});await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&floodFrameState==='ready',{},{timeout:90000});
  await page.locator('#openDownloadModalBtn').click();
@@ -79,7 +79,7 @@ try{
   result.checks.push('Manual 3D entry preserves an explicit Flood Depth choice while loading building assets');
   await page.locator('.nw-simple-view').click();await page.waitForFunction(()=>window.NORTH_WILDWOOD_3D.state().pitch===0,{},{timeout:10000});
   await page.locator('#observedDataBtn').click();await page.waitForFunction(()=>currentDataMode==='observed'&&floodFrameState==='ready',{},{timeout:60000});await page.evaluate(()=>loadObservedDay('2026-09-26'));
-  await page.waitForFunction(()=>{const s=window.NORTH_WILDWOOD_3D.getMap().getSource('nw-flood-drape-source');return s?.loaded()&&s.image&&s.url===currentFloodLayer?._url;},{},{timeout:20000});
+  await page.waitForFunction(()=>{const s=window.NORTH_WILDWOOD_3D.getMap().getSource(window.NORTH_WILDWOOD_3D.state().floodDrapeSourceId);return s?.loaded()&&s.image&&s.url===currentFloodLayer?._url;},{},{timeout:20000});
   const before=await snapshot();result.states.push({label:'storm-before',...before});
   const target=await page.evaluate(async()=>{for(let i=0;i<currentSeriesHours.length;i++){const e=currentSeriesHours[i];if(getStageValue(e)<=1)continue;const a=await getHydraulicOverlayRecord(currentOverlayMode,getOverlayStage(getStageValue(e)),getHydraulicPhaseForEntry(e,i,currentSeriesHours),e,currentRawSeriesHours);if(a?.url&&!a.url.startsWith('blob:')&&a.url!==currentFloodLayer._url)return{index:i,url:a.url,stage:getStageValue(e),time:e.timeUtc};}return null;});assert.ok(target,'Use a real positive-water static storm asset');result.target=target;
   let failure=true,failedRequests=0;const failNative=route=>{if(failure&&route.request().resourceType()==='fetch'){failedRequests++;return route.abort('failed');}return route.continue();};await page.route(target.url,failNative);
@@ -87,11 +87,30 @@ try{
   failure=false;await page.evaluate(i=>renderHour(i),target.index);const recovered=await snapshot();result.states.push({label:'native-image-recovered',...recovered});assert.equal(recovered.index,target.index);assert.equal(recovered.url,target.url);assert.equal(recovered.sourceUrl,target.url);assert.equal(recovered.sourceLoaded,true);result.checks.push('A failed native top-down image retains the committed storm time and retries successfully without reload');
   await page.unroute(target.url,failNative);
   // Hold one native image request, select another real frame, then release the
-  // obsolete transport. The late image must not replace the newer selection.
-  await page.evaluate(i=>renderHour(i),before.index);let held=[];const holdNative=route=>{if(route.request().resourceType()==='fetch'){held.push(route);return;}return route.continue();};await page.route(target.url,holdNative);
-  await page.evaluate(i=>{window.__pendingNativeSelection=renderHour(i);},target.index);for(let i=0;i<100&&!held.length;i++)await page.waitForTimeout(50);assert.ok(held.length);
+  // obsolete transport. Use a fresh MapLibre request without changing the
+  // Leaflet image, the selected URL, or the production raster bytes.
+  await page.evaluate(i=>renderHour(i),before.index);
+  const probeUrl = new URL(target.url);
+  probeUrl.searchParams.set('nwwNativeStall', '1');
+  await page.evaluate(({original, probe}) => {
+    NORTH_WILDWOOD_3D.getMap().setTransformRequest((url, type) => ({
+      url: type === 'Image' && url === original ? probe : url
+    }));
+  }, {original:target.url, probe:probeUrl.href});
+  const held = [];
+  const holdNative = route => { held.push(route); };
+  await page.route(probeUrl.href, holdNative);
+  await Promise.all([
+    page.waitForRequest(probeUrl.href, {timeout:20000}),
+    page.evaluate(i=>{window.__pendingNativeSelection=renderHour(i);},target.index)
+  ]);
+  const during = await snapshot();
+  assert.equal(during.frame, 'loading');
+  assert.equal(during.index, before.index);
+  assert.equal(during.url, before.url);
+  assert.equal(during.sourceUrl, before.url);
   const latestIndex=(target.index+1)%await page.evaluate(()=>currentSeriesHours.length);await page.evaluate(i=>renderHour(i),latestIndex);const latest=await snapshot();
-  for(const route of held)await route.continue().catch(()=>{});await page.unroute(target.url,holdNative);await page.evaluate(()=>window.__pendingNativeSelection);await page.waitForTimeout(300);const afterLate=await snapshot();result.states.push({label:'late-obsolete-native-image',...afterLate});assert.equal(afterLate.index,latest.index);assert.equal(afterLate.url,latest.url);assert.equal(afterLate.sourceUrl,latest.url);assert.equal(afterLate.sourceLoaded,true);result.checks.push('A late obsolete native image cannot overwrite a newer time selection');result.webgl='3D and native top-down cases exercised';
+  for(const route of held)await route.continue().catch(()=>{});await page.unroute(probeUrl.href,holdNative);await page.evaluate(()=>window.__pendingNativeSelection);await page.waitForTimeout(300);const afterLate=await snapshot();result.states.push({label:'late-obsolete-native-image',...afterLate});assert.equal(afterLate.index,latest.index);assert.equal(afterLate.url,latest.url);assert.equal(afterLate.sourceUrl,latest.url);assert.equal(afterLate.sourceLoaded,true);result.checks.push('A late obsolete native image cannot overwrite a newer time selection');result.webgl='3D and native top-down cases exercised';
  }
  assert.deepEqual(result.errors,[]);await page.screenshot({path:path.join(output,`${name}-followup-3d.png`)});
 }catch(e){result.failure=e.stack;result.states.push(await snapshot().catch(()=>({label:'unavailable'})));throw e;}

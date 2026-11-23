@@ -26,7 +26,9 @@
   var buildingDataPromise = null;
   var mapLibreRuntimePromise = null;
   var mapStylePromise = null;
+  var preload3dGeneration = 0;
   var floodPlaneLayer = null;
+  var floodPlaneSlotId = "nw-flood-overlay";
   var pendingFlood3dRequest = null;
   var floodRemovalTimer = null;
   var syncingFromLeaflet = false;
@@ -277,6 +279,7 @@
   }
 
   function restoreLeafletAfter3dFailure(mapInstance) {
+    disposePendingFloodFrame3d();
     var center = mapInstance.getCenter();
     var zoom = mapInstance.getZoom();
     if (glPopup && persistentFloodPopup !== townAddressPopup) persistentFloodPopup?.remove();
@@ -374,7 +377,7 @@
   function createFlatFloodPlane(options) {
     var initial = options || {};
     return {
-      id: "nw-flood-overlay",
+      id: initial.id || "nw-flood-overlay",
       type: "custom",
       // Floodwater is a true level surface in the same depth buffer as terrain.
       // A no-depth 2D custom pass made the PNG slide over the map while the
@@ -397,6 +400,7 @@
       localProjectionMatrix: new Float32Array(16),
       textureReady: false,
       visible: Boolean(initial.visible),
+      staged: initial.staged === true,
       useDepthTest: initial.useDepthTest !== false,
       textureLoadPromise: Promise.resolve(false),
       imageToken: 0,
@@ -514,7 +518,7 @@
         var image = new Image();
         image.crossOrigin = "anonymous";
         image.decoding = "async";
-        document.body.dataset.map3dFloodTexture = self.textureReady ? "updating" : "loading";
+        if (!self.staged) document.body.dataset.map3dFloodTexture = self.textureReady ? "updating" : "loading";
         this.textureLoadPromise = new Promise(function (resolve) {
           var settled = false;
           var timer = null;
@@ -528,7 +532,7 @@
           }
           function cancel() { finish(false); }
           function failed() {
-            if (token === self.imageToken) document.body.dataset.map3dFloodTexture = self.textureReady ? "stale" : "unavailable";
+            if (!self.staged && token === self.imageToken) document.body.dataset.map3dFloodTexture = self.textureReady ? "stale" : "unavailable";
             finish(false);
           }
           self.cancelTextureLoad = cancel;
@@ -587,9 +591,11 @@
                 if (previous === priorTexture0) self.retiredTextures.push(previous);
                 else gl.deleteTexture(previous);
               }
-              document.body.dataset.map3dFloodTexture = "ready";
-              document.body.dataset.map3dFloodPhysicalAltitudeMeters = self.altitudeMeters.toFixed(3);
-              document.body.dataset.map3dFloodAltitudeMeters = self.altitudeMeters.toFixed(3);
+              if (!self.staged) {
+                document.body.dataset.map3dFloodTexture = "ready";
+                document.body.dataset.map3dFloodPhysicalAltitudeMeters = self.altitudeMeters.toFixed(3);
+                document.body.dataset.map3dFloodAltitudeMeters = self.altitudeMeters.toFixed(3);
+              }
               if (self.map) self.map.triggerRepaint();
               finish(true);
             } catch (_) {
@@ -790,8 +796,9 @@
     var pitched = glMap.getPitch() > 10;
     var detailedDepth = usesDetailedFloodDepth();
     syncBuildingVisibilityForCamera();
-    if (glMap.getLayer("nw-flood-drape")) {
-      glMap.setLayoutProperty("nw-flood-drape", "visibility", visibility(!pitched));
+    var drape = floodDrapeIds();
+    if (glMap.getLayer(drape.layerId)) {
+      glMap.setLayoutProperty(drape.layerId, "visibility", visibility(!pitched));
     }
     if (floodPlaneLayer && typeof floodPlaneLayer.setVisible === "function") {
       floodPlaneLayer.setVisible(pitched);
@@ -834,7 +841,8 @@
   }
 
   function placeFloodForScaleDepthPass() {
-    if (!glMap || !glMap.getLayer("nw-flood-overlay")) return;
+    var floodLayerId = floodPlaneLayer?.id || "nw-flood-overlay";
+    if (!glMap || !glMap.getLayer(floodLayerId)) return;
     // Only the verified municipal GeoJSON is ever extruded. Basemap buildings
     // outside Highlands remain flat map context when Buildings is on.
     var buildingLayerIds = ["nw-3d-buildings"];
@@ -852,18 +860,18 @@
     }
     if (!usesDetailedFloodDepth()) {
       var firstBuildingLayer = styleLayers[firstBuildingIndex];
-      var floodIndex = styleLayers.findIndex(function (layer) { return layer.id === "nw-flood-overlay"; });
+      var floodIndex = styleLayers.findIndex(function (layer) { return layer.id === floodLayerId; });
       if (firstBuildingLayer && floodIndex !== firstBuildingIndex - 1) {
-        glMap.moveLayer("nw-flood-overlay", firstBuildingLayer.id);
+        glMap.moveLayer(floodLayerId, firstBuildingLayer.id);
       }
       document.body.dataset.map3dFloodBuildingOcclusion = "overview-buildings-after-water";
       return;
     }
     var nextLayer = styleLayers[lastBuildingIndex + 1];
     if (!nextLayer) {
-      glMap.moveLayer("nw-flood-overlay");
-    } else if (nextLayer.id !== "nw-flood-overlay") {
-      glMap.moveLayer("nw-flood-overlay", nextLayer.id);
+      glMap.moveLayer(floodLayerId);
+    } else if (nextLayer.id !== floodLayerId) {
+      glMap.moveLayer(floodLayerId, nextLayer.id);
     }
     document.body.dataset.map3dFloodBuildingOcclusion = "single-extrusion-water-composite";
   }
@@ -881,21 +889,49 @@
     document.body.dataset.map3dBuildingWaterStageNavd88Ft = selectedStage === null ? "none" : selectedStage.toFixed(3);
   }
 
+  function floodDrapeIds(plane) {
+    var selected = arguments.length ? plane : floodPlaneLayer;
+    var suffix = (selected?.id || floodPlaneSlotId) === "nw-flood-overlay-next" ? "-next" : "";
+    return { layerId: "nw-flood-drape" + suffix, sourceId: "nw-flood-drape-source" + suffix };
+  }
+
+  function disposePendingFloodFrame3d(request) {
+    request = request || pendingFlood3dRequest;
+    if (!request || request.disposed) return;
+    request.disposed = true;
+    if (pendingFlood3dRequest === request) pendingFlood3dRequest = null;
+    if (request.reuse) return;
+    if (request.plane?.cancelTextureLoad) request.plane.cancelTextureLoad();
+    var ownerMap = request.map;
+    try {
+      if (request.plane && request.plane !== floodPlaneLayer && ownerMap.getLayer(request.plane.id)) ownerMap.removeLayer(request.plane.id);
+      if (request.drape && ownerMap.getSource(request.drape.sourceId) === request.source) {
+        if (ownerMap.getLayer(request.drape.layerId)) ownerMap.removeLayer(request.drape.layerId);
+        ownerMap.removeSource(request.drape.sourceId);
+      }
+    } catch (_) { /* A retired map/style has already released these layers. */ }
+  }
+
   function syncFloodLayer3d() {
     if (!glMap || !glStyleReady) return;
-    var request = pendingFlood3dRequest && pendingFlood3dRequest.isCurrent() ? pendingFlood3dRequest : null;
-    var selectedLayer = request ? request.layer : currentFloodLayer;
+    if (pendingFlood3dRequest && !pendingFlood3dRequest.isCurrent()) disposePendingFloodFrame3d();
+    // Pending renderers stay hidden until the Leaflet frame owner commits.
+    var selectedLayer = currentFloodLayer;
     var url = selectedLayer && (selectedLayer._url || selectedLayer._image && selectedLayer._image.src);
     var coordinates = selectedLayer?._worldFileAffine && selectedLayer._worldFileCorners
       ? selectedLayer._worldFileCorners.map(function (corner) { return [corner.lng, corner.lat]; })
       : coordinatesFromLeafletBounds(selectedLayer?.getBounds?.()) || activeFloodCoordinates();
     if (!url || !coordinates) {
       syncBuildingWaterComposite3d(null);
+      disposePendingFloodFrame3d();
       if (floodRemovalTimer) window.clearTimeout(floodRemovalTimer);
       // Selection metadata has already changed; a previous texture is stale.
       removeLayerAndSource("nw-flood-drape", "nw-flood-drape-source");
       removeLayerAndSource("nw-flood-overlay", "nw-flood-source");
+      removeLayerAndSource("nw-flood-drape-next", "nw-flood-drape-source-next");
+      removeLayerAndSource("nw-flood-overlay-next", "nw-flood-source-next");
       floodPlaneLayer = null;
+      floodPlaneSlotId = "nw-flood-overlay";
       document.body.dataset.map3dFloodTexture = "empty";
       return;
     }
@@ -903,7 +939,7 @@
       window.clearTimeout(floodRemovalTimer);
       floodRemovalTimer = null;
     }
-    var stageNavd88 = request ? request.frame.stage : getSelectedStageNavd88();
+    var stageNavd88 = getSelectedStageNavd88();
     var pitched = glMap.getPitch() > 10;
     var physicalAltitudeMeters = Number.isFinite(stageNavd88)
       ? stageNavd88 * 0.3048 * TERRAIN_EXAGGERATION
@@ -914,16 +950,17 @@
       opacity: overlayOpacity,
       visible: pitched,
       useDepthTest: usesDetailedFloodDepth(),
-      isCurrent: request ? request.isCurrent : null,
+      isCurrent: null,
       altitudeMeters: physicalAltitudeMeters
     };
     // Top-down mode uses MapLibre's native image source, which remains in one
     // stable style layer while the camera pans or rotates. The preloaded flat
     // depth plane is reserved for pitched 3D, where water must meet terrain
     // and building walls instead of stretching over the DEM.
+    var drape = floodDrapeIds();
     updateImageLayer({
-      sourceId: "nw-flood-drape-source",
-      layerId: "nw-flood-drape",
+      sourceId: drape.sourceId,
+      layerId: drape.layerId,
       url: url,
       coordinates: coordinates,
       opacity: overlayOpacity,
@@ -931,7 +968,8 @@
       visible: !pitched
     });
     if (glMap.getSource("nw-flood-source")) removeLayerAndSource("nw-flood-overlay", "nw-flood-source");
-    if (!glMap.getLayer("nw-flood-overlay")) {
+    if (!floodPlaneLayer || !glMap.getLayer(floodPlaneLayer.id)) {
+      options.id = floodPlaneSlotId;
       floodPlaneLayer = createFlatFloodPlane(options);
       addLayerBelowMask(floodPlaneLayer);
     } else if (floodPlaneLayer && typeof floodPlaneLayer.update === "function") {
@@ -952,38 +990,95 @@
   async function prepareFloodFrame3d(layer, frame, token) {
     if (!glMap || !document.body.classList.contains("map-3d-ready")) return true;
     if (!glStyleReady || document.body.dataset.map3d !== "ready") return false;
+    disposePendingFloodFrame3d();
     var requestedMap = glMap;
-    var request = { layer: layer, frame: frame, token: token, isCurrent: function () {
+    var request = { layer: layer, frame: frame, token: token, map: requestedMap, ready: false, isCurrent: function () {
       return pendingFlood3dRequest === request && glMap === requestedMap && glStyleReady &&
-        token === lastRenderToken && pendingFloodLayer === layer && map?.hasLayer(layer);
+        !request.disposed && token === lastRenderToken && pendingFloodLayer === layer && map?.hasLayer(layer);
     } };
     pendingFlood3dRequest = request;
     var accepted = false;
     try {
-      syncFloodLayer3d();
       var url = layer._url || layer.getElement?.()?.src;
-      var plane = floodPlaneLayer;
-      var source = requestedMap.getSource("nw-flood-drape-source");
-      // Both presentations already preload this URL. Certify both before the
-      // metadata commits, including a 2D/3D change made while either is pending.
+      var coordinates = layer?._worldFileAffine && layer._worldFileCorners
+        ? layer._worldFileCorners.map(function (corner) { return [corner.lng, corner.lat]; })
+        : coordinatesFromLeafletBounds(layer.getBounds?.()) || activeFloodCoordinates();
+      if (!url || !coordinates) return false;
+      request.options = { url: url, coordinates: coordinates, opacity: overlayOpacity,
+        visible: false, staged: true, useDepthTest: usesDetailedFloodDepth(), isCurrent: request.isCurrent,
+        altitudeMeters: Number.isFinite(frame.stage) ? frame.stage * 0.3048 * TERRAIN_EXAGGERATION : 0 };
+      var activeDrape = floodDrapeIds();
+      var activeSource = requestedMap.getSource(activeDrape.sourceId);
+      request.reuse = Boolean(floodPlaneLayer?.textureReady && floodPlaneLayer.committedUrl === url &&
+        activeSource?.loaded() && activeSource.image &&
+        imageLayerVersions.get(activeSource) === JSON.stringify([url, coordinates]));
+      if (request.reuse) {
+        request.plane = floodPlaneLayer;
+        request.drape = activeDrape;
+        request.source = activeSource;
+      } else {
+        request.options.id = floodPlaneLayer
+          ? (floodPlaneLayer.id === "nw-flood-overlay" ? "nw-flood-overlay-next" : "nw-flood-overlay")
+          : floodPlaneSlotId;
+        request.plane = createFlatFloodPlane(request.options);
+        request.drape = floodDrapeIds(request.plane);
+        addLayerBelowMask(request.plane);
+        updateImageLayer({ sourceId: request.drape.sourceId, layerId: request.drape.layerId,
+          url: url, coordinates: coordinates, opacity: 0, visible: true,
+          beforeId: glMap.getLayer("nw-2d-buildings") ? "nw-2d-buildings" : undefined });
+        request.source = requestedMap.getSource(request.drape.sourceId);
+      }
+      // Neither candidate may alter the displayed image while its companion
+      // is stalled. Readiness alone does not publish pixels or frame metadata.
       var ready = await Promise.all([
-        plane ? plane.whenReady() : false,
-        waitForNativeFloodImage3d(requestedMap, source, request.isCurrent)
+        request.plane.whenReady(),
+        request.reuse ? true : waitForNativeFloodImage3d(requestedMap, request.source, request.isCurrent, request.drape.sourceId)
       ]);
-      accepted = Boolean(ready.every(Boolean) && request.isCurrent() && plane === floodPlaneLayer &&
-        plane.textureReady && plane.committedUrl === url);
+      accepted = Boolean(ready.every(Boolean) && request.isCurrent() &&
+        request.plane.textureReady && request.plane.committedUrl === url);
+      request.ready = accepted;
       return accepted;
     } finally {
-      if (pendingFlood3dRequest === request) {
-        pendingFlood3dRequest = null;
-        // Failed/obsolete candidates must not change the committed frame's
-        // water height, texture or native image source.
-        if (!accepted) syncFloodLayer3d();
-      }
+      if (!accepted) disposePendingFloodFrame3d(request);
     }
   }
 
-  function waitForNativeFloodImage3d(mapInstance, source, isCurrent) {
+  function commitFloodFrame3d(layer, token) {
+    if (!glMap || !document.body.classList.contains("map-3d-ready")) {
+      disposePendingFloodFrame3d();
+      return true;
+    }
+    var request = pendingFlood3dRequest;
+    if (!request || request.layer !== layer || request.token !== token || !request.ready || !request.isCurrent()) return false;
+    if (!glMap.getLayer(request.plane.id) || glMap.getSource(request.drape.sourceId) !== request.source ||
+        !request.plane.texture || request.plane.gl?.isContextLost?.()) {
+      disposePendingFloodFrame3d(request);
+      return false;
+    }
+    var previous = floodPlaneLayer;
+    var previousDrape = floodDrapeIds();
+    floodPlaneLayer = request.plane;
+    floodPlaneSlotId = floodPlaneLayer.id;
+    pendingFlood3dRequest = null;
+    request.disposed = true;
+    floodPlaneLayer.staged = false;
+    floodPlaneLayer.update({ ...request.options, opacity: overlayOpacity,
+      useDepthTest: usesDetailedFloodDepth(), visible: glMap.getPitch() > 10, isCurrent: null });
+    if (!request.reuse) {
+      if (previous && glMap.getLayer(previous.id)) glMap.removeLayer(previous.id);
+      if (previousDrape.sourceId !== request.drape.sourceId) removeLayerAndSource(previousDrape.layerId, previousDrape.sourceId);
+    }
+    glMap.setPaintProperty(request.drape.layerId, "raster-opacity", overlayOpacity);
+    syncFloodPresentationMode();
+    syncBuildingWaterComposite3d(request.frame.stage);
+    document.body.dataset.map3dFloodTexture = "ready";
+    document.body.dataset.map3dFloodPhysicalAltitudeMeters = floodPlaneLayer.altitudeMeters.toFixed(3);
+    document.body.dataset.map3dFloodAltitudeMeters = floodPlaneLayer.altitudeMeters.toFixed(3);
+    glMap.triggerRepaint();
+    return true;
+  }
+
+  function waitForNativeFloodImage3d(mapInstance, source, isCurrent, sourceId = "nw-flood-drape-source") {
     return new Promise(function (resolve) {
       var settled = false;
       var timer = window.setTimeout(function () { finish(false); }, 20000);
@@ -999,10 +1094,10 @@
         resolve(ready);
       }
       function failed(event) {
-        if (event && event.sourceId === "nw-flood-drape-source") finish(false);
+        if (event && event.sourceId === sourceId) finish(false);
       }
       function check() {
-        if (!isCurrent() || !source || mapInstance.getSource("nw-flood-drape-source") !== source) { finish(false); return; }
+        if (!isCurrent() || !source || mapInstance.getSource(sourceId) !== source) { finish(false); return; }
         if (source.loaded() && source.image) finish(true);
       }
       mapInstance.on("error", failed);
@@ -1013,9 +1108,7 @@
 
   function discardObsoleteFloodFrame3d() {
     if (!pendingFlood3dRequest || pendingFlood3dRequest.isCurrent()) return;
-    pendingFlood3dRequest = null;
-    if (floodPlaneLayer?.cancelTextureLoad) floodPlaneLayer.cancelTextureLoad();
-    syncFloodLayer3d();
+    disposePendingFloodFrame3d();
   }
 
   function syncSatellite3d() {
@@ -2058,6 +2151,7 @@
       clearWait();
       retryRestoration = null;
       retryFloodRecovery3d = null;
+      disposePendingFloodFrame3d();
       glStyleReady = false;
       // GPU handles belong to the lost context. MapLibre drops custom layers
       // from the recovered style, so the old layer object must not be reused.
@@ -2102,18 +2196,19 @@
             while (current(token)) {
               var restoredLayer = floodPlaneLayer;
               var restoredUrl = restoredLayer && restoredLayer.url;
-              var restoredSource = mapInstance.getSource("nw-flood-drape-source");
+              var restoredDrape = floodDrapeIds();
+              var restoredSource = mapInstance.getSource(restoredDrape.sourceId);
               var ready = await Promise.all([
                 restoredLayer ? restoredLayer.whenReady() : true,
                 restoredLayer ? waitForNativeFloodImage3d(mapInstance, restoredSource, function () {
                   return current(token) && restoredLayer === floodPlaneLayer && restoredUrl === restoredLayer.url;
-                }) : true
+                }, restoredDrape.sourceId) : true
               ]);
               if (!current(token)) return false;
               // Follow a selection made during recovery. A superseded image
               // resolving cannot certify the newer texture as healthy.
               if (restoredLayer !== floodPlaneLayer || restoredLayer && restoredUrl !== restoredLayer.url ||
-                  restoredSource !== mapInstance.getSource("nw-flood-drape-source")) continue;
+                  restoredSource !== mapInstance.getSource(restoredDrape.sourceId)) continue;
               if (restoredLayer && (!ready.every(Boolean) || !restoredLayer.textureReady || restoredLayer.committedUrl !== restoredUrl)) {
                 throw new Error("The selected flood texture could not reload.");
               }
@@ -2250,6 +2345,29 @@
       syncNsi3d();
       await syncBuildings3d({ preload: true });
       requireCurrent();
+      // Keep the working Leaflet view visible until both initial water
+      // presentations are usable. Selection changes can supersede this wait.
+      while (floodPlaneLayer) {
+        var initialPlane = floodPlaneLayer;
+        var initialUrl = initialPlane.url;
+        var initialDrape = floodDrapeIds();
+        var initialSource = initialization.map.getSource(initialDrape.sourceId);
+        var ready = await Promise.all([
+          initialPlane.whenReady(),
+          waitForNativeFloodImage3d(initialization.map, initialSource, function () {
+            return current() && glMap === initialization.map && glStyleReady &&
+              initialPlane === floodPlaneLayer && initialUrl === initialPlane.url;
+          }, initialDrape.sourceId)
+        ]);
+        requireCurrent();
+        if (initialPlane !== floodPlaneLayer || initialUrl !== initialPlane.url ||
+            initialSource !== initialization.map.getSource(initialDrape.sourceId)) continue;
+        if (!ready.every(Boolean) || !initialPlane.textureReady || initialPlane.committedUrl !== initialUrl) {
+          throw new Error("The initial flood display could not be loaded.");
+        }
+        break;
+      }
+      if (glMap !== initialization.map || !glStyleReady) throw new Error("The initial 3D style was interrupted.");
       document.body.classList.add("map-3d-ready");
       if (townAddressMarker) setAddressMarker(townAddressMarker.getLatLng(), townAddressMarker.options.title);
       if (townAddressPopup && persistentFloodPopup === townAddressPopup) {
@@ -2273,6 +2391,7 @@
       startup.then(function (value) { window.clearTimeout(timer); resolve(value); }, function (error) { window.clearTimeout(timer); reject(error); });
     }).catch(function (error) {
       if (!current()) return null;
+      disposePendingFloodFrame3d();
       initialization.cancelled = true;
       if (initialization.cancelRenderer) initialization.cancelRenderer();
       if (mapStylePromise && mapStylePromise.cancel) mapStylePromise.cancel();
@@ -2320,33 +2439,42 @@
 
   async function preload3dAssets(options) {
     var preloadOptions = options || {};
-    await Promise.all([
-      loadMapLibreRuntime(),
-      load3dStyle(),
-      loadBuildingData()
-    ]);
-    document.body.dataset.map3dPreloaded = "true";
-    if (preloadOptions.initialize) {
-      document.body.dataset.map3dFullyPreloaded = "loading";
-      var mapInstance = await ensure3dMap();
-      if (!mapInstance) throw new Error("The complete 3D map could not be preloaded.");
-      var floodReady = floodPlaneLayer && typeof floodPlaneLayer.whenReady === "function"
-        ? floodPlaneLayer.whenReady()
-        : Promise.resolve(true);
+    var generation = preloadOptions.initialize ? ++preload3dGeneration : null;
+    if (generation !== null) document.body.dataset.map3dFullyPreloaded = "loading";
+    try {
       await Promise.all([
-        waitFor3dMapIdle(mapInstance, 45000),
-        floodReady
+        loadMapLibreRuntime(),
+        load3dStyle(),
+        loadBuildingData()
       ]);
-      // Preloading must never move the visible camera or restore an older
-      // viewpoint over a compass gesture made while assets were loading.
-      document.body.dataset.map3dCameraPreload = "current-view-only";
-      document.body.dataset.map3dFullyPreloaded = "interactive";
+      document.body.dataset.map3dPreloaded = "true";
+      if (preloadOptions.initialize) {
+        var mapInstance = await ensure3dMap();
+        if (!mapInstance) throw new Error("The complete 3D map could not be preloaded.");
+        var floodReady = floodPlaneLayer && typeof floodPlaneLayer.whenReady === "function"
+          ? floodPlaneLayer.whenReady()
+          : Promise.resolve(true);
+        var readiness = await Promise.all([
+          waitFor3dMapIdle(mapInstance, 45000),
+          floodReady
+        ]);
+        if (readiness[1] === false || glMap !== mapInstance || !glStyleReady || generation !== preload3dGeneration) {
+          throw new Error("The complete 3D flood display could not be preloaded.");
+        }
+        // Preloading must never move the visible camera or restore an older
+        // viewpoint over a compass gesture made while assets were loading.
+        document.body.dataset.map3dCameraPreload = "current-view-only";
+        document.body.dataset.map3dFullyPreloaded = "interactive";
+      }
+      return {
+        buildings: buildingData && buildingData.features ? buildingData.features.length : 0,
+        terrainExaggeration: TERRAIN_EXAGGERATION,
+        initialized: Boolean(preloadOptions.initialize && glMap)
+      };
+    } catch (error) {
+      if (generation !== null && generation === preload3dGeneration) document.body.dataset.map3dFullyPreloaded = "failed";
+      throw error;
     }
-    return {
-      buildings: buildingData && buildingData.features ? buildingData.features.length : 0,
-      terrainExaggeration: TERRAIN_EXAGGERATION,
-      initialized: Boolean(preloadOptions.initialize && glMap)
-    };
   }
 
   function enableDefaultBuildings3d() {
@@ -2760,8 +2888,9 @@
   applyOverlayOpacity = function () {
     var result = originalApplyOverlayOpacity.apply(this, arguments);
     if (floodPlaneLayer && typeof floodPlaneLayer.setOpacity === "function") floodPlaneLayer.setOpacity(overlayOpacity);
-    if (glMap && glStyleReady && glMap.getLayer("nw-flood-drape")) {
-      glMap.setPaintProperty("nw-flood-drape", "raster-opacity", overlayOpacity);
+    var drape = floodDrapeIds();
+    if (glMap && glStyleReady && glMap.getLayer(drape.layerId)) {
+      glMap.setPaintProperty(drape.layerId, "raster-opacity", overlayOpacity);
     }
     return result;
   };
@@ -2843,10 +2972,15 @@
     getBuildingData: function () { return buildingData; },
     syncFlood: syncFloodLayer3d,
     prepareFloodFrame: prepareFloodFrame3d,
+    commitFloodFrame: commitFloodFrame3d,
     syncBuildings: syncBuildings3d,
     state: function () {
       return {
         ready: document.body.classList.contains("map-3d-ready"),
+        floodLayerId: floodPlaneLayer?.id || null,
+        floodDrapeLayerId: floodDrapeIds().layerId,
+        floodDrapeSourceId: floodDrapeIds().sourceId,
+        floodUrl: floodPlaneLayer?.committedUrl || null,
         exaggeration: TERRAIN_EXAGGERATION,
         maxZoom: MAP_MAX_ZOOM,
         pitch: glMap ? glMap.getPitch() : null,

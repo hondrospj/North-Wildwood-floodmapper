@@ -19,11 +19,11 @@ const result = {browser:name,version:browser.version(),checks:[],axe:[],errors:[
 const page = await browser.newPage({viewport:{width:1440,height:900},timezoneId:'America/New_York'});
 page.setDefaultTimeout(15000);
 page.on('pageerror',error=>result.errors.push(error.message));
-async function scan(label) {
-  const audit = await page.evaluate(async()=>{
-    const data = await window.axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}});
+async function scan(label, runOnly = {type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}) {
+  const audit = await page.evaluate(async runOnly=>{
+    const data = await window.axe.run(document,{runOnly});
     return {version:window.axe.version,violations:data.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({target:n.target,html:n.html,summary:n.failureSummary}))}))};
-  });
+  }, runOnly);
   result.axe.push({label,...audit});
   assert.deepEqual(audit.violations,[],`${label}: no WCAG A/AA axe violations`);
 }
@@ -100,6 +100,7 @@ try {
   assert.equal(await page.locator('#map3d').getAttribute('role'),'region');
   assert.equal(await page.locator('#map3d').getAttribute('aria-label'),'Interactive 3D North Wildwood flood map');
   await scan('Desktop map');
+  await scan('Desktop visible labels', {type:'rule',values:['label-content-name-mismatch']});
   await page.locator('#openDownloadModalBtn').click();
   await states('Export settings initially closed');await scan('Export settings initially closed');
   const initial = await page.locator('#downloadStartDateText').inputValue();

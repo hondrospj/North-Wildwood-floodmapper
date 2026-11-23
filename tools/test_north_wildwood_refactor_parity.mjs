@@ -12,6 +12,14 @@ import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const MAPPER_AUDIT_PATH = "tools/fixtures/north-wildwood-20261123-mapper-audit.json";
+const priorMapperAuditSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-mapper-audit-snapshot");
+const mapperAuditText = fs.readFileSync(localPath(MAPPER_AUDIT_PATH));
+assert.equal(hashReleaseBytes(mapperAuditText), "feae0d02307881f0c3e5992004814284dc484a0d75aa3a228a7c44876d600f10", "Retain the exact mapper audit inverse");
+const mapperAudit = JSON.parse(mapperAuditText);
+assert.equal(mapperAudit.schemaVersion, 1);
+assert.equal(mapperAudit.baselineCommit, "d23429ad1689e64b29e6071f9ffd908ae0d58029");
+const mapperAuditFiles = new Map(mapperAudit.files.map(entry => [entry.source, entry]));
 const PLAYBACK_SPEED_PATH = "tools/fixtures/north-wildwood-20261123-playback-speed.json";
 const priorPlaybackSpeedSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-playback-speed-snapshot");
 const playbackSpeedText = fs.readFileSync(localPath(PLAYBACK_SPEED_PATH));
@@ -111,8 +119,17 @@ function restoreReleaseBytes(bytes, entry, scope) {
   return restored;
 }
 
-function readBeforePlaybackSpeed(relative) {
+function readBeforeMapperAudit(relative) {
   const bytes = fs.readFileSync(localPath(relative));
+  const entry = mapperAuditFiles.get(relative);
+  return priorMapperAuditSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "mapper audit");
+}
+if (!priorMapperAuditSnapshot) {
+  for (const file of mapperAudit.files) readBeforeMapperAudit(file.source);
+}
+
+function readBeforePlaybackSpeed(relative) {
+  const bytes = readBeforeMapperAudit(relative);
   const entry = playbackSpeedFiles.get(relative);
   return priorPlaybackSpeedSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "playback speed");
 }
@@ -2864,6 +2881,7 @@ if (process.argv.includes("--self-test")) {
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
       DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
+      MAPPER_AUDIT_PATH, ...mapperAudit.files.map(file => file.source),
       PLAYBACK_SPEED_PATH, ...playbackSpeed.files.map(file => file.source),
       KEY_POLISH_PATH, ...keyPolish.files.map(file => file.source),
       MAPPER_BLOAT_PATH, ...mapperBloat.files.map(file => file.source),
@@ -2888,7 +2906,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforePlaybackSpeed = (args = []) => runRelease(["--prior-playback-speed-snapshot", ...args]);
+    const runBeforeMapperAudit = (args = []) => runRelease(["--prior-mapper-audit-snapshot", ...args]);
+    const runBeforePlaybackSpeed = (args = []) => runBeforeMapperAudit(["--prior-playback-speed-snapshot", ...args]);
     const runBeforeKeyPolish = (args = []) => runBeforePlaybackSpeed(["--prior-key-polish-snapshot", ...args]);
     const runBeforeMapperBloat = (args = []) => runBeforeKeyPolish(["--prior-mapper-bloat-snapshot", ...args]);
     const runBeforeTimelinePanel = (args = []) => runBeforeMapperBloat(["--prior-timeline-panel-snapshot", ...args]);
@@ -2915,12 +2934,21 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered mapper audit inverse", path.join(scratch, MAPPER_AUDIT_PATH), Buffer.concat([mapperAuditText, Buffer.from(" ")])],
+      ...mapperAudit.files.map(file => {
+        const target = path.join(scratch, file.source);
+        return ["unreviewed mapper audit byte in " + file.source, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of mapperAudit.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeMapperAudit(file.source));
+    assert.equal(runBeforeMapperAudit().status, 0, "The restored application before the mapper audit must pass");
+    assertMutationsRejected([
       ["altered playback speed inverse", path.join(scratch, PLAYBACK_SPEED_PATH), Buffer.concat([playbackSpeedText, Buffer.from(" ")])],
       ...playbackSpeed.files.map(file => {
         const target = path.join(scratch, file.source);
         return [`unreviewed playback speed byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
       })
-    ], runRelease);
+    ], runBeforeMapperAudit);
     for (const file of playbackSpeed.files) fs.writeFileSync(path.join(scratch, file.source), readBeforePlaybackSpeed(file.source));
     assert.equal(runBeforePlaybackSpeed().status, 0, "The restored application before the playback speed fix must pass");
     assertMutationsRejected([

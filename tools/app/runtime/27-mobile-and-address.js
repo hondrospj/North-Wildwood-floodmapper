@@ -592,18 +592,16 @@
       return candidates.map(item => normalizeArcgisTownCandidate(item, clean)).filter(Boolean);
     }
 
-    function pickBestTownAddressCandidate(candidates, clean) {
-      const seen = new Set();
-      const unique = [];
-      candidates.forEach(candidate => {
-        const key = `${candidate.lat.toFixed(6)},${candidate.lon.toFixed(6)}`;
-        if (seen.has(key)) return;
-        seen.add(key);
-        candidate.score = townAddressCandidateScore(candidate, clean);
-        unique.push(candidate);
-      });
-      unique.sort((a, b) => b.score - a.score);
-      return unique[0] || null;
+    function pickBestTownAddressCandidate(candidates) {
+      // The providers already score their normalized street matches. A
+      // shared coordinate can still carry a more precise address label.
+      let best = null;
+      for (const candidate of candidates) {
+        if (Number.isFinite(candidate.score) && (!best || candidate.score > best.score)) {
+          best = candidate;
+        }
+      }
+      return best;
     }
 
     function getCurrentFloodThresholdsForDatum() {
@@ -676,7 +674,7 @@
         ]);
         if (generation !== townAddressSearchGeneration) return;
         const candidates = candidateSets.flatMap(result => result.status === "fulfilled" && Array.isArray(result.value) ? result.value : []);
-        const match = pickBestTownAddressCandidate(candidates, clean);
+        const match = pickBestTownAddressCandidate(candidates);
         if (!match) {
           setTownAddressStatus(`No close ${townName} match found. Try a street number and street name.`, "error");
           return;

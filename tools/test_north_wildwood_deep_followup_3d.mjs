@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { readyAtomic3dFixture } from './test_north_wildwood_atomic_3d_commit.mjs';
 const source=fs.readFileSync(new URL('../assets/3d/north-wildwood-3d.js',import.meta.url),'utf8');
 function fn(name){const start=source.search(new RegExp('^  (?:async )?function '+name+'\\(','m'));assert.ok(start>=0,name);return source.slice(start,source.indexOf('\n  }',start)+4);}
 function deferred(){let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return{promise,resolve,reject};}
@@ -28,6 +29,8 @@ function startupFixture(){
  const MapNative=globalThis.Map;
  const c=vm.createContext({glMap:null,glMapPromise:null,glMapInitialization:null,glStyleReady:false,mapStylePromise:null,buildingDataPromise:null,window:{...timer,matchMedia:()=>({matches:false})},document:{body:{dataset:{},classList:{add:n=>classes.add(n),remove:n=>classes.delete(n)}},getElementById:()=>({})},map:{getCenter:()=>({lng:0,lat:0}),getZoom:()=>14,invalidateSize(){}},maplibregl:{Map},MAP_MAX_ZOOM:22,GRAPHICS_FALLBACK_NOTICE:'3D graphics unavailable',DEFAULT_PITCH:0,DEFAULT_BEARING:0,TERRAIN_EXAGGERATION:4,townAddressMarker:null,townAddressPopup:null,console:{warn(){}},requestAnimationFrame:cb=>queueMicrotask(cb),loadMapLibreRuntime:async()=>{},load3dStyle:()=>style(),syncBuildings3d:()=>build()});
  for(const name of ['schedulePersistentNavControlSync','syncFloodPresentationMode','syncPersistentNavControl','addCore3dLayers','wire3dInteractions','wire3dContextRecovery','syncBoundary3d','syncFloodLayer3d','syncSatellite3d','syncRoadLabels3d','syncParcels3d','syncNsi3d','updateDiagnostics','suspendLeafletVisualLayers'])c[name]=()=>{};
+ c.disposePendingFloodFrame3d=()=>{};
+ c.floodPlaneLayer=null;
  vm.runInContext(fn('ensure3dMap'),c);return{c,timer,styles,buildings,maps,classes,style:value=>{style=value;},build:value=>{build=value;}};
 }
 {
@@ -78,10 +81,20 @@ function startupFixture(){
 }
 // Native top-down images must finish before frame commit and remain retryable after transport failure.
 for(const outcome of ['both-ready','hidden-native-failed','hidden-plane-failed']){
- const native=deferred(),gpu=deferred(),layer={_url:'new'},sourceImage={};let restored=0,settled=false,pitch=60;
- const map={getPitch:()=>pitch,getSource:()=>sourceImage},plane={textureReady:true,committedUrl:'new',whenReady:()=>gpu.promise};
- const c=vm.createContext({glMap:map,glStyleReady:true,lastRenderToken:1,pendingFloodLayer:layer,pendingFlood3dRequest:null,floodPlaneLayer:plane,currentFloodLayer:{_url:'old'},document:{body:{dataset:{map3d:'ready'},classList:{contains:()=>true}}},map:{hasLayer:()=>true},waitForNativeFloodImage3d:()=>native.promise,syncFloodLayer3d(){if(!c.pendingFlood3dRequest)restored++;}});
- vm.runInContext(fn('prepareFloodFrame3d'),c);const job=c.prepareFloodFrame3d(layer,{stage:4.4},1).then(value=>{settled=true;return value;});native.resolve(outcome!=='hidden-native-failed');await flush();assert.equal(settled,false,'Native readiness alone cannot commit a frame while the pitched presentation is pending');pitch=0;gpu.resolve(outcome!=='hidden-plane-failed');assert.equal(await job,outcome==='both-ready');assert.equal(restored,outcome==='both-ready'?0:1);checks++;
+ const h=await readyAtomic3dFixture(60),c=h.c;let settled=false;
+ const job=c.prepareFloodFrame3d(h.newLayer,{stage:4.4},2).then(value=>{settled=true;return value;});
+ h.finishNative('new',outcome!=='hidden-native-failed');await flush();
+ assert.equal(settled,false,'Native readiness alone cannot commit while the pitched presentation is pending');
+ h.setPitch(0);await h.finishImages('new',outcome!=='hidden-plane-failed');
+ assert.equal(await job,outcome==='both-ready');
+ assert.equal(c.floodPlaneLayer,h.oldPlane,'Preparation retains both committed presentations');
+ assert.equal(h.oldNative.url,'old');
+ if(outcome==='both-ready'){
+  assert.ok(c.pendingFlood3dRequest?.ready,'Readiness retains candidates until owner commit');
+  assert.equal(c.commitFloodFrame3d(h.newLayer,2),true);
+  assert.equal(c.floodPlaneLayer.committedUrl,'new');
+ }
+ assert.equal(c.pendingFlood3dRequest,null);checks++;
 }
 for(const outcome of ['ready','error','timeout','superseded','replacement']){
  const timer=clock(),listeners=new Map(),sourceImage={loaded:()=>loaded,image:{old:true}},versions=new WeakMap();let loaded=false,current=true;const replacement={};

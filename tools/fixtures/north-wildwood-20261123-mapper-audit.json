@@ -1,0 +1,1065 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "d23429ad1689e64b29e6071f9ffd908ae0d58029",
+  "scope": "Correct playback and history ownership, geocoder ranking, raster and road-layer failures, 3D startup and frame commits, and control focus and labels.",
+  "files": [
+    {
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSha256": "356db993347b684380d12a8c014903c1c10b718dd299aab96531e1e18672006c",
+      "afterSha256": "038f46adc728dc070845c3e73101e913f516d7aa4e26ed64261917ac94b67e36",
+      "edits": [
+        [
+          1219,
+          1250,
+          ""
+        ],
+        [
+          1280,
+          1325,
+          ""
+        ],
+        [
+          11370,
+          11404,
+          ""
+        ],
+        [
+          15059,
+          15103,
+          "      id: \"nw-flood-overlay\",\n"
+        ],
+        [
+          15949,
+          15988,
+          ""
+        ],
+        [
+          22432,
+          22544,
+          "        document.body.dataset.map3dFloodTexture = self.textureReady ? \"updating\" : \"loading\";\n"
+        ],
+        [
+          23054,
+          23200,
+          "            if (token === self.imageToken) document.body.dataset.map3dFloodTexture = self.textureReady ? \"stale\" : \"unavailable\";\n"
+        ],
+        [
+          26775,
+          27094,
+          "              document.body.dataset.map3dFloodTexture = \"ready\";\n              document.body.dataset.map3dFloodPhysicalAltitudeMeters = self.altitudeMeters.toFixed(3);\n              document.body.dataset.map3dFloodAltitudeMeters = self.altitudeMeters.toFixed(3);\n"
+        ],
+        [
+          36700,
+          36856,
+          "    if (glMap.getLayer(\"nw-flood-drape\")) {\n      glMap.setLayoutProperty(\"nw-flood-drape\", \"visibility\", visibility(!pitched));\n"
+        ],
+        [
+          38564,
+          38687,
+          "    if (!glMap || !glMap.getLayer(\"nw-flood-overlay\")) return;\n"
+        ],
+        [
+          39471,
+          39573,
+          "      var floodIndex = styleLayers.findIndex(function (layer) { return layer.id === \"nw-flood-overlay\"; });\n"
+        ],
+        [
+          39646,
+          39708,
+          "        glMap.moveLayer(\"nw-flood-overlay\", firstBuildingLayer.id);\n"
+        ],
+        [
+          39906,
+          40042,
+          "      glMap.moveLayer(\"nw-flood-overlay\");\n    } else if (nextLayer.id !== \"nw-flood-overlay\") {\n      glMap.moveLayer(\"nw-flood-overlay\", nextLayer.id);\n"
+        ],
+        [
+          40978,
+          42147,
+          ""
+        ],
+        [
+          42220,
+          42438,
+          "    var request = pendingFlood3dRequest && pendingFlood3dRequest.isCurrent() ? pendingFlood3dRequest : null;\n    var selectedLayer = request ? request.layer : currentFloodLayer;\n"
+        ],
+        [
+          42902,
+          42938,
+          ""
+        ],
+        [
+          43223,
+          43381,
+          ""
+        ],
+        [
+          43411,
+          43456,
+          ""
+        ],
+        [
+          43646,
+          43694,
+          "    var stageNavd88 = request ? request.frame.stage : getSelectedStageNavd88();\n"
+        ],
+        [
+          44029,
+          44052,
+          "      isCurrent: request ? request.isCurrent : null,\n"
+        ],
+        [
+          44401,
+          44434,
+          ""
+        ],
+        [
+          44457,
+          44519,
+          "      sourceId: \"nw-flood-drape-source\",\n      layerId: \"nw-flood-drape\",\n"
+        ],
+        [
+          44818,
+          44922,
+          "    if (!glMap.getLayer(\"nw-flood-overlay\")) {\n"
+        ],
+        [
+          45965,
+          45999,
+          ""
+        ],
+        [
+          46029,
+          46149,
+          "    var request = { layer: layer, frame: frame, token: token, isCurrent: function () {\n"
+        ],
+        [
+          46241,
+          46352,
+          "        token === lastRenderToken && pendingFloodLayer === layer && map?.hasLayer(layer);\n"
+        ],
+        [
+          46434,
+          46434,
+          "      syncFloodLayer3d();\n"
+        ],
+        [
+          46491,
+          48443,
+          "      var plane = floodPlaneLayer;\n      var source = requestedMap.getSource(\"nw-flood-drape-source\");\n      // Both presentations already preload this URL. Certify both before the\n      // metadata commits, including a 2D/3D change made while either is pending.\n"
+        ],
+        [
+          48481,
+          48646,
+          "        plane ? plane.whenReady() : false,\n        waitForNativeFloodImage3d(requestedMap, source, request.isCurrent)\n"
+        ],
+        [
+          48656,
+          48835,
+          "      accepted = Boolean(ready.every(Boolean) && request.isCurrent() && plane === floodPlaneLayer &&\n        plane.textureReady && plane.committedUrl === url);\n"
+        ],
+        [
+          48874,
+          48932,
+          "      if (pendingFlood3dRequest === request) {\n        pendingFlood3dRequest = null;\n        // Failed/obsolete candidates must not change the committed frame's\n        // water height, texture or native image source.\n        if (!accepted) syncFloodLayer3d();\n      }\n"
+        ],
+        [
+          48943,
+          50797,
+          "  function waitForNativeFloodImage3d(mapInstance, source, isCurrent) {\n"
+        ],
+        [
+          51365,
+          51430,
+          "        if (event && event.sourceId === \"nw-flood-drape-source\") finish(false);\n"
+        ],
+        [
+          51463,
+          51573,
+          "        if (!isCurrent() || !source || mapInstance.getSource(\"nw-flood-drape-source\") !== source) { finish(false); return; }\n"
+        ],
+        [
+          51870,
+          51904,
+          "    pendingFlood3dRequest = null;\n    if (floodPlaneLayer?.cancelTextureLoad) floodPlaneLayer.cancelTextureLoad();\n    syncFloodLayer3d();\n"
+        ],
+        [
+          99524,
+          99560,
+          ""
+        ],
+        [
+          101799,
+          101932,
+          "              var restoredSource = mapInstance.getSource(\"nw-flood-drape-source\");\n"
+        ],
+        [
+          102260,
+          102310,
+          "                }) : true\n"
+        ],
+        [
+          102635,
+          102729,
+          "                  restoredSource !== mapInstance.getSource(\"nw-flood-drape-source\")) continue;\n"
+        ],
+        [
+          109082,
+          110386,
+          ""
+        ],
+        [
+          111849,
+          111885,
+          ""
+        ],
+        [
+          113621,
+          113794,
+          "    await Promise.all([\n      loadMapLibreRuntime(),\n      load3dStyle(),\n      loadBuildingData()\n    ]);\n    document.body.dataset.map3dPreloaded = \"true\";\n    if (preloadOptions.initialize) {\n      document.body.dataset.map3dFullyPreloaded = \"loading\";\n      var mapInstance = await ensure3dMap();\n      if (!mapInstance) throw new Error(\"The complete 3D map could not be preloaded.\");\n      var floodReady = floodPlaneLayer && typeof floodPlaneLayer.whenReady === \"function\"\n        ? floodPlaneLayer.whenReady()\n        : Promise.resolve(true);\n"
+        ],
+        [
+          113820,
+          113901,
+          "        waitFor3dMapIdle(mapInstance, 45000),\n        floodReady\n"
+        ],
+        [
+          113911,
+          115341,
+          "      // Preloading must never move the visible camera or restore an older\n      // viewpoint over a compass gesture made while assets were loading.\n      document.body.dataset.map3dCameraPreload = \"current-view-only\";\n      document.body.dataset.map3dFullyPreloaded = \"interactive\";\n"
+        ],
+        [
+          115347,
+          115347,
+          "    return {\n      buildings: buildingData && buildingData.features ? buildingData.features.length : 0,\n      terrainExaggeration: TERRAIN_EXAGGERATION,\n      initialized: Boolean(preloadOptions.initialize && glMap)\n    };\n"
+        ],
+        [
+          133394,
+          133572,
+          "    if (glMap && glStyleReady && glMap.getLayer(\"nw-flood-drape\")) {\n      glMap.setPaintProperty(\"nw-flood-drape\", \"raster-opacity\", overlayOpacity);\n"
+        ],
+        [
+          136939,
+          136981,
+          ""
+        ],
+        [
+          137122,
+          137336,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "3aa88f53fcd07b008268533b8b7293df2e06f2b8c35b384786f6789230f6cbc1",
+      "afterSha256": "1785a69bf677411ed4ccc92bb378dd2fa6855e419bc7afb9f1cc04b4165345d4",
+      "edits": [
+        [
+          179389,
+          179959,
+          "      })().catch(error => {\n"
+        ],
+        [
+          180037,
+          180037,
+          "          if (cache.get(key) === request) cache.delete(key);\n"
+        ],
+        [
+          180233,
+          180275,
+          "      const record = await awaitRasterRequest(request);\n      if (cache !== bathtubStageOverlayCache) {\n        retireRasterObjectUrl(record?.url);\n        return null;\n      }\n      if (!record) {\n        cache.delete(key);\n        return null;\n      }\n      return cacheBathtubStageOverlay(key, record);\n"
+        ],
+        [
+          439130,
+          439130,
+          "      btn.setAttribute(\"aria-label\", `#${event.rank} ${event.title}, ${stage}`);\n"
+        ],
+        [
+          454530,
+          454615,
+          "          toast(err.message);\n          return;\n"
+        ],
+        [
+          455923,
+          456106,
+          ""
+        ],
+        [
+          458875,
+          459054,
+          ""
+        ],
+        [
+          459598,
+          460450,
+          "    async function renderHour(index) {\n"
+        ],
+        [
+          460483,
+          460607,
+          "      if (!currentSeriesHours.length) return;\n"
+        ],
+        [
+          460608,
+          460652,
+          "      const entry = currentSeriesHours[index];\n"
+        ],
+        [
+          460729,
+          460729,
+          "      const requestedSeries = currentSeriesHours;\n"
+        ],
+        [
+          460768,
+          460823,
+          ""
+        ],
+        [
+          461212,
+          461410,
+          "      const hydraulicPhase = getHydraulicPhaseForEntry(entry, index, currentSeriesHours);\n      const observedDate = entry.isDailyMaximum && currentViewType === \"observed-day\" &&\n"
+        ],
+        [
+          461575,
+          461788,
+          "      const rawSeries = observedDay ? buildObservedCanonicalSeries(observedDay, observedDate) : currentRawSeriesHours;\n"
+        ],
+        [
+          461826,
+          461914,
+          ""
+        ],
+        [
+          462237,
+          462446,
+          "          renderCalendar().catch(error => toast(error.message));\n"
+        ],
+        [
+          462630,
+          462731,
+          "      const slider = document.getElementById(\"hourSlider\");\n      slider.value = String(index);\n      updateSliderProgress();\n"
+        ],
+        [
+          463785,
+          464186,
+          "      document.body.classList.toggle(\"physics-forecast-active\", physicsUiIsActive);\n      document.body.classList.toggle(\"physics-daily-maximum-active\", physicsDailyUiIsActive);\n      if (\n        physicsUiWasActive !== physicsUiIsActive ||\n        physicsDailyUiWasActive !== physicsDailyUiIsActive\n      ) renderLegend();\n"
+        ],
+        [
+          465028,
+          465120,
+          "      if (token !== lastRenderToken || requestedSeries !== currentSeriesHours) return false;\n"
+        ],
+        [
+          465140,
+          465191,
+          ""
+        ],
+        [
+          465362,
+          465711,
+          "        document.body.classList.toggle(\"physics-forecast-active\", physicsUiWasActive);\n        document.body.classList.toggle(\"physics-daily-maximum-active\", physicsDailyUiWasActive);\n        if (physicsUiWasActive !== physicsUiIsActive || physicsDailyUiWasActive !== physicsDailyUiIsActive) renderLegend();\n"
+        ],
+        [
+          465817,
+          465860,
+          ""
+        ],
+        [
+          506624,
+          506804,
+          "      cancelPendingFloodFrame();\n"
+        ],
+        [
+          506852,
+          506970,
+          ""
+        ],
+        [
+          507206,
+          507295,
+          "      if (generation !== selectionGeneration) return false;\n"
+        ],
+        [
+          507376,
+          507629,
+          ""
+        ],
+        [
+          507653,
+          507701,
+          ""
+        ],
+        [
+          508640,
+          508946,
+          "      const preservePlayback = Boolean(options && options.preservePlayback);\n      if (!preservePlayback) stopPlayback();\n      currentDataMode = \"observed\";\n      updateDataModeButtons();\n"
+        ],
+        [
+          508947,
+          509580,
+          "      // Once data is committed, an interval change must rebuild this series\n      // rather than only updating the cadence of a still-pending request.\n      if (loadObservedDay.pendingSelection?.generation === generation) loadObservedDay.pendingSelection = null;\n      topTideEvents = buildTopTideEvents();\n      setObservedDaySelection(dateStr, dayRecord);\n      currentRawSeriesHours = buildObservedCanonicalSeries(dayRecord, dateStr);\n      currentSeriesHours = getTimelineIntervalMinutes() === 1440\n        ? buildObservedDailyMaximumSeries(dateStr.slice(0, 7))\n        : sampleCanonicalHydraulicSeries(currentRawSeriesHours, getTimelineIntervalMinutes());\n      currentViewType = \"observed-day\";\n      currentTopTideIndex = null;\n"
+        ],
+        [
+          509581,
+          510525,
+          "      syncSliderBounds();\n      if (preferredEntry) {\n        currentHourIndex = findClosestMeasuredEntryIndex(currentSeriesHours, preferredEntry);\n      } else if (getTimelineIntervalMinutes() === 1440) {\n        const selectedDayIndex = currentSeriesHours.findIndex(entry => entry?.observedDate === dateStr);\n        currentHourIndex = selectedDayIndex >= 0 ? selectedDayIndex : getPeakHourIndex(currentSeriesHours);\n      } else if (options.dayStep) {\n        currentHourIndex = options.dayStep < 0 ? Math.max(0, currentSeriesHours.length - 1) : 0;\n      } else if (preferredHourIndex != null) {\n        currentHourIndex = Math.max(0, Math.min(preferredHourIndex, Math.max(0, currentSeriesHours.length - 1)));\n      } else {\n        currentHourIndex = getPeakHourIndex(currentSeriesHours);\n"
+        ],
+        [
+          510533,
+          510695,
+          "      document.getElementById(\"hourSlider\").value = String(currentHourIndex);\n\n      await renderCalendar();\n      if (generation !== selectionGeneration) return false;\n      const rendered = await renderHour(currentHourIndex);\n"
+        ],
+        [
+          517466,
+          517488,
+          ""
+        ],
+        [
+          518412,
+          518412,
+          "        stopPlayback();\n"
+        ],
+        [
+          518822,
+          518822,
+          "      stopPlayback();\n"
+        ],
+        [
+          521319,
+          521341,
+          ""
+        ],
+        [
+          521391,
+          521391,
+          "      stopPlayback();\n"
+        ],
+        [
+          535170,
+          535206,
+          ""
+        ],
+        [
+          535421,
+          535524,
+          ""
+        ],
+        [
+          535866,
+          536285,
+          ""
+        ],
+        [
+          537301,
+          537359,
+          "    async function stepSeriesBy(delta) {\n"
+        ],
+        [
+          537406,
+          537496,
+          "      const navigationIndex = getTimelineNavigationIndex();\n"
+        ],
+        [
+          537614,
+          537666,
+          "        return renderHour(nextIndex);\n"
+        ],
+        [
+          538095,
+          538191,
+          "          const playback = playTimer ? playbackGeneration : null;\n          const load = loadObservedDay(neighborDate, null, null, {\n            preservePlayback: playback !== null, dayStep: delta\n          });\n"
+        ],
+        [
+          538461,
+          538547,
+          "      if (delta > 0) {\n        await renderHour(0);\n      } else {\n        await renderHour(Math.max(0, currentSeriesHours.length - 1));\n      }\n"
+        ],
+        [
+          540372,
+          540671,
+          "      const advanced = await stepSeriesBy(catchUp ? getPlaybackCatchUpStep() : 1);\n"
+        ],
+        [
+          607084,
+          607547,
+          ""
+        ],
+        [
+          607741,
+          607812,
+          "          const grid = await loadDepthQueryPng(webpUrl, 5000);\n          const size = TOWN_CONFIG?.overlays?.worldFileRasterSize;\n          if (!size || (grid.width === size.width && grid.height === size.height)) return grid;\n"
+        ],
+        [
+          608056,
+          608122,
+          "          return await loadDepthQueryPng(url.href);\n"
+        ],
+        [
+          660367,
+          660791,
+          "    function pickBestTownAddressCandidate(candidates, clean) {\n      const seen = new Set();\n      const unique = [];\n      candidates.forEach(candidate => {\n        const key = `${candidate.lat.toFixed(6)},${candidate.lon.toFixed(6)}`;\n        if (seen.has(key)) return;\n        seen.add(key);\n        candidate.score = townAddressCandidateScore(candidate, clean);\n        unique.push(candidate);\n      });\n      unique.sort((a, b) => b.score - a.score);\n      return unique[0] || null;\n"
+        ],
+        [
+          663807,
+          663871,
+          "        const match = pickBestTownAddressCandidate(candidates, clean);\n"
+        ]
+      ]
+    },
+    {
+      "source": "assets/app/unified-controller.js",
+      "beforeSha256": "5b0256915d8937ea4f1208398706d223df7b099645a81a80ea3f9632f57ac3f0",
+      "afterSha256": "7879396007ed457d7ccbb771eeb938bb98f791943d224e0a6d4d92337fce6a68",
+      "edits": [
+        [
+          2036,
+          2135,
+          " let frame=0,layoutPasses=0,drawerOpener=null,drawerFocusGeneration=0;\n let lastLegendFocus=null;\n"
+        ],
+        [
+          10713,
+          10740,
+          " function setDrawer(open,returnFocus=true){\n"
+        ],
+        [
+          10784,
+          10829,
+          ""
+        ],
+        [
+          10862,
+          10890,
+          "  if(open){drawerOpener=document.activeElement;setLegend(false);}\n"
+        ],
+        [
+          11015,
+          11099,
+          "  syncDrawer();schedule();\n"
+        ],
+        [
+          11209,
+          11217,
+          "  else if(returnFocus){\n   const closingFocus=document.activeElement;\n"
+        ],
+        [
+          11248,
+          11448,
+          "    if(generation!==drawerFocusGeneration||body.classList.contains('mobile-controls-open')||document.activeElement!==closingFocus)return;\n"
+        ],
+        [
+          11561,
+          11643,
+          "    (drawerOpener?.isConnected?drawerOpener:document.getElementById('mobileControlsToggle'))?.focus({preventScroll:true});\n"
+        ],
+        [
+          11657,
+          11692,
+          " function syncDrawer(){\n"
+        ],
+        [
+          11908,
+          11968,
+          ""
+        ],
+        [
+          12583,
+          12774,
+          ""
+        ],
+        [
+          18897,
+          19085,
+          ""
+        ],
+        [
+          19120,
+          19166,
+          "  const focusAfterMove=reparent(previousFocus);\n"
+        ],
+        [
+          19216,
+          19681,
+          ""
+        ],
+        [
+          26194,
+          26292,
+          "  body.dataset.unifiedLayoutPasses=String(layoutPasses);body.dataset.unifiedLayout=compact?'mobile':'desktop';\n"
+        ],
+        [
+          26678,
+          26771,
+          ""
+        ],
+        [
+          26929,
+          27014,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "assets/road-impacts.js",
+      "beforeSha256": "e5f31d353b1a05bec81a60e4ae9b7b88c680cce283b2443507ce68c1a0f74b2a",
+      "afterSha256": "cb6eff46cae098a07fa70bddcbc67e54f4cc173d1a66aaf30fa1e403758cc9c8",
+      "edits": [
+        [
+          2173,
+          2393,
+          "    if (map && leafletLayer && map.hasLayer(leafletLayer)) map.removeLayer(leafletLayer);\n    if (map && enabled && !useGl && renderedData.features.length) {\n"
+        ],
+        [
+          2937,
+          3001,
+          "      leafletLayer.addTo(map);\n"
+        ],
+        [
+          11331,
+          11448,
+          "      if (!enabled || request !== revision) return;\n"
+        ]
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "57619b7885924b632dbeb2838bb7b99495b0fc8961efc7f25b31e6058a9308e8",
+      "afterSha256": "b073ff6558d2a4140c91bf58b5cad5814a56ec737084ca6243acbe0c7ab3e234",
+      "edits": [
+        [
+          69137,
+          69241,
+          "          <button id=\"returnIntervalDataBtn\" type=\"button\" aria-label=\"Modeled flood scenarios\" aria-pressed=\"false\">Modeled Floods</button>\n"
+        ],
+        [
+          87641,
+          87817,
+          "            <button id=\"timelineSpeedBtn\" type=\"button\" aria-label=\"Double playback speed\" aria-pressed=\"false\">1×</button>\n"
+        ],
+        [
+          109828,
+          109926,
+          "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=3aa88f53fcd07b00\"></script>\n"
+        ],
+        [
+          110076,
+          110220,
+          "<script src=\"./assets/3d/north-wildwood-3d.js?v=356db993347b6843\"></script>\n<script src=\"./assets/road-impacts.js?v=e5f31d353b1a05be\"></script>\n"
+        ],
+        [
+          112489,
+          112723,
+          "<script id=\"floodmapper-unified-controller-20261017\" data-ui-sha256=\"3668b4912f612ae595cb1ee4e11fdf9aa7a80ccfbdbfff78d243e7714470baf7\" data-nww-script=\"script-011\" src=\"./assets/app/unified-controller.js?v=5b0256915d8937ea\"></script>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "b6414a33d2d9a8cd103b64dc771b4884c0dadf4c53781904dc56ec9fe8cb47bf",
+      "afterSha256": "23d110686eb96c541268f508de5551107f56ea34325bba84ed6118253f8c63fd",
+      "edits": [
+        [
+          10595,
+          10699,
+          "          <button id=\"returnIntervalDataBtn\" type=\"button\" aria-label=\"Modeled flood scenarios\" aria-pressed=\"false\">Modeled Floods</button>\n"
+        ],
+        [
+          29166,
+          29342,
+          "            <button id=\"timelineSpeedBtn\" type=\"button\" aria-label=\"Double playback speed\" aria-pressed=\"false\">1×</button>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/09-raster-lifecycle.js",
+      "beforeSha256": "64ad4d4d1c46d5fabdac8b6b367ebb75826a759708109a0319c828346d7ed679",
+      "afterSha256": "09f812120ae45b11337d59f1839d88bd3067b082b18aec7135cccf054862d35a",
+      "edits": [
+        [
+          9206,
+          9776,
+          "      })().catch(error => {\n"
+        ],
+        [
+          9854,
+          9854,
+          "          if (cache.get(key) === request) cache.delete(key);\n"
+        ],
+        [
+          10050,
+          10092,
+          "      const record = await awaitRasterRequest(request);\n      if (cache !== bathtubStageOverlayCache) {\n        retireRasterObjectUrl(record?.url);\n        return null;\n      }\n      if (!record) {\n        cache.delete(key);\n        return null;\n      }\n      return cacheBathtubStageOverlay(key, record);\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/19-observed-history.js",
+      "beforeSha256": "a3f0b721128c99473577d5c9f462801e4262b49912de7b9a4ba2e788e54c91fa",
+      "afterSha256": "1702b66905d6088222c33941f47a9c7f92ed007fe841d6a21eea4933fa43ef88",
+      "edits": [
+        [
+          30884,
+          30884,
+          "      btn.setAttribute(\"aria-label\", `#${event.rank} ${event.title}, ${stage}`);\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/20-timeline-rendering.js",
+      "beforeSha256": "dcfcd6b369381621305ed6d92d516812026fc92d0dd5241e76dfd9627d2788e2",
+      "afterSha256": "6ba1ee5b4c9df7433f6bfb57bf86708f7fbd81bfe63f1bf1f1981acf92d18006",
+      "edits": [
+        [
+          11190,
+          11275,
+          "          toast(err.message);\n          return;\n"
+        ],
+        [
+          12583,
+          12766,
+          ""
+        ],
+        [
+          15535,
+          15714,
+          ""
+        ],
+        [
+          16258,
+          17110,
+          "    async function renderHour(index) {\n"
+        ],
+        [
+          17143,
+          17267,
+          "      if (!currentSeriesHours.length) return;\n"
+        ],
+        [
+          17268,
+          17312,
+          "      const entry = currentSeriesHours[index];\n"
+        ],
+        [
+          17389,
+          17389,
+          "      const requestedSeries = currentSeriesHours;\n"
+        ],
+        [
+          17428,
+          17483,
+          ""
+        ],
+        [
+          17872,
+          18070,
+          "      const hydraulicPhase = getHydraulicPhaseForEntry(entry, index, currentSeriesHours);\n      const observedDate = entry.isDailyMaximum && currentViewType === \"observed-day\" &&\n"
+        ],
+        [
+          18235,
+          18448,
+          "      const rawSeries = observedDay ? buildObservedCanonicalSeries(observedDay, observedDate) : currentRawSeriesHours;\n"
+        ],
+        [
+          18486,
+          18574,
+          ""
+        ],
+        [
+          18897,
+          19106,
+          "          renderCalendar().catch(error => toast(error.message));\n"
+        ],
+        [
+          19290,
+          19391,
+          "      const slider = document.getElementById(\"hourSlider\");\n      slider.value = String(index);\n      updateSliderProgress();\n"
+        ],
+        [
+          20445,
+          20846,
+          "      document.body.classList.toggle(\"physics-forecast-active\", physicsUiIsActive);\n      document.body.classList.toggle(\"physics-daily-maximum-active\", physicsDailyUiIsActive);\n      if (\n        physicsUiWasActive !== physicsUiIsActive ||\n        physicsDailyUiWasActive !== physicsDailyUiIsActive\n      ) renderLegend();\n"
+        ],
+        [
+          21688,
+          21780,
+          "      if (token !== lastRenderToken || requestedSeries !== currentSeriesHours) return false;\n"
+        ],
+        [
+          21800,
+          21851,
+          ""
+        ],
+        [
+          22022,
+          22371,
+          "        document.body.classList.toggle(\"physics-forecast-active\", physicsUiWasActive);\n        document.body.classList.toggle(\"physics-daily-maximum-active\", physicsDailyUiWasActive);\n        if (physicsUiWasActive !== physicsUiIsActive || physicsDailyUiWasActive !== physicsDailyUiIsActive) renderLegend();\n"
+        ],
+        [
+          22477,
+          22520,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/22-calendar-and-modes.js",
+      "beforeSha256": "a533ec972df6a2828a71d8ded37181df83d72a0370dce36f6afb12250584e9ba",
+      "afterSha256": "fa1df7300dce55fca8ff013e52058f482faf25209638113a4b2283eb6eb0242d",
+      "edits": [
+        [
+          11829,
+          12009,
+          "      cancelPendingFloodFrame();\n"
+        ],
+        [
+          12057,
+          12175,
+          ""
+        ],
+        [
+          12411,
+          12500,
+          "      if (generation !== selectionGeneration) return false;\n"
+        ],
+        [
+          12581,
+          12834,
+          ""
+        ],
+        [
+          12858,
+          12906,
+          ""
+        ],
+        [
+          13845,
+          14151,
+          "      const preservePlayback = Boolean(options && options.preservePlayback);\n      if (!preservePlayback) stopPlayback();\n      currentDataMode = \"observed\";\n      updateDataModeButtons();\n"
+        ],
+        [
+          14152,
+          14785,
+          "      // Once data is committed, an interval change must rebuild this series\n      // rather than only updating the cadence of a still-pending request.\n      if (loadObservedDay.pendingSelection?.generation === generation) loadObservedDay.pendingSelection = null;\n      topTideEvents = buildTopTideEvents();\n      setObservedDaySelection(dateStr, dayRecord);\n      currentRawSeriesHours = buildObservedCanonicalSeries(dayRecord, dateStr);\n      currentSeriesHours = getTimelineIntervalMinutes() === 1440\n        ? buildObservedDailyMaximumSeries(dateStr.slice(0, 7))\n        : sampleCanonicalHydraulicSeries(currentRawSeriesHours, getTimelineIntervalMinutes());\n      currentViewType = \"observed-day\";\n      currentTopTideIndex = null;\n"
+        ],
+        [
+          14786,
+          15730,
+          "      syncSliderBounds();\n      if (preferredEntry) {\n        currentHourIndex = findClosestMeasuredEntryIndex(currentSeriesHours, preferredEntry);\n      } else if (getTimelineIntervalMinutes() === 1440) {\n        const selectedDayIndex = currentSeriesHours.findIndex(entry => entry?.observedDate === dateStr);\n        currentHourIndex = selectedDayIndex >= 0 ? selectedDayIndex : getPeakHourIndex(currentSeriesHours);\n      } else if (options.dayStep) {\n        currentHourIndex = options.dayStep < 0 ? Math.max(0, currentSeriesHours.length - 1) : 0;\n      } else if (preferredHourIndex != null) {\n        currentHourIndex = Math.max(0, Math.min(preferredHourIndex, Math.max(0, currentSeriesHours.length - 1)));\n      } else {\n        currentHourIndex = getPeakHourIndex(currentSeriesHours);\n"
+        ],
+        [
+          15738,
+          15900,
+          "      document.getElementById(\"hourSlider\").value = String(currentHourIndex);\n\n      await renderCalendar();\n      if (generation !== selectionGeneration) return false;\n      const rendered = await renderHour(currentHourIndex);\n"
+        ],
+        [
+          22671,
+          22693,
+          ""
+        ],
+        [
+          23617,
+          23617,
+          "        stopPlayback();\n"
+        ],
+        [
+          24027,
+          24027,
+          "      stopPlayback();\n"
+        ],
+        [
+          26524,
+          26546,
+          ""
+        ],
+        [
+          26596,
+          26596,
+          "      stopPlayback();\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/23-refresh-and-playback.js",
+      "beforeSha256": "9f1d9a11b7a280384dda1fd53d99ab2b5df4f2fc634d08d0fa78fdc1843d9e60",
+      "afterSha256": "2b4a15add03c140f982374e40ea4709be4cdd19536122c6885bdc15b4913f4f5",
+      "edits": [
+        [
+          7975,
+          8011,
+          ""
+        ],
+        [
+          8226,
+          8329,
+          ""
+        ],
+        [
+          8671,
+          9090,
+          ""
+        ],
+        [
+          10106,
+          10164,
+          "    async function stepSeriesBy(delta) {\n"
+        ],
+        [
+          10211,
+          10301,
+          "      const navigationIndex = getTimelineNavigationIndex();\n"
+        ],
+        [
+          10419,
+          10471,
+          "        return renderHour(nextIndex);\n"
+        ],
+        [
+          10900,
+          10996,
+          "          const playback = playTimer ? playbackGeneration : null;\n          const load = loadObservedDay(neighborDate, null, null, {\n            preservePlayback: playback !== null, dayStep: delta\n          });\n"
+        ],
+        [
+          11266,
+          11352,
+          "      if (delta > 0) {\n        await renderHour(0);\n      } else {\n        await renderHour(Math.max(0, currentSeriesHours.length - 1));\n      }\n"
+        ],
+        [
+          13177,
+          13476,
+          "      const advanced = await stepSeriesBy(catchUp ? getPlaybackCatchUpStep() : 1);\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/26-depth-queries.js",
+      "beforeSha256": "e860a14bdab395437b09ec881731e0487dc77fa9676915e7984a80b106783daf",
+      "afterSha256": "9458fb67df520249e3f655fcb5f7b60c36132c15ed077df92f8b104594723b2c",
+      "edits": [
+        [
+          1715,
+          2178,
+          ""
+        ],
+        [
+          2372,
+          2443,
+          "          const grid = await loadDepthQueryPng(webpUrl, 5000);\n          const size = TOWN_CONFIG?.overlays?.worldFileRasterSize;\n          if (!size || (grid.width === size.width && grid.height === size.height)) return grid;\n"
+        ],
+        [
+          2687,
+          2753,
+          "          return await loadDepthQueryPng(url.href);\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/27-mobile-and-address.js",
+      "beforeSha256": "ce8fbf289ad745b1dd01d1877720cceccc3675d17e0a01ed026937c3fb670eac",
+      "afterSha256": "bd2c41dcdc1289a7b41c239476d1ec8082b14e0fcf75703556bc2ba650b2e9ac",
+      "edits": [
+        [
+          25427,
+          25851,
+          "    function pickBestTownAddressCandidate(candidates, clean) {\n      const seen = new Set();\n      const unique = [];\n      candidates.forEach(candidate => {\n        const key = `${candidate.lat.toFixed(6)},${candidate.lon.toFixed(6)}`;\n        if (seen.has(key)) return;\n        seen.add(key);\n        candidate.score = townAddressCandidateScore(candidate, clean);\n        unique.push(candidate);\n      });\n      unique.sort((a, b) => b.score - a.score);\n      return unique[0] || null;\n"
+        ],
+        [
+          28867,
+          28931,
+          "        const match = pickBestTownAddressCandidate(candidates, clean);\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/unified-controller.js",
+      "beforeSha256": "5b0256915d8937ea4f1208398706d223df7b099645a81a80ea3f9632f57ac3f0",
+      "afterSha256": "7879396007ed457d7ccbb771eeb938bb98f791943d224e0a6d4d92337fce6a68",
+      "edits": [
+        [
+          2036,
+          2135,
+          " let frame=0,layoutPasses=0,drawerOpener=null,drawerFocusGeneration=0;\n let lastLegendFocus=null;\n"
+        ],
+        [
+          10713,
+          10740,
+          " function setDrawer(open,returnFocus=true){\n"
+        ],
+        [
+          10784,
+          10829,
+          ""
+        ],
+        [
+          10862,
+          10890,
+          "  if(open){drawerOpener=document.activeElement;setLegend(false);}\n"
+        ],
+        [
+          11015,
+          11099,
+          "  syncDrawer();schedule();\n"
+        ],
+        [
+          11209,
+          11217,
+          "  else if(returnFocus){\n   const closingFocus=document.activeElement;\n"
+        ],
+        [
+          11248,
+          11448,
+          "    if(generation!==drawerFocusGeneration||body.classList.contains('mobile-controls-open')||document.activeElement!==closingFocus)return;\n"
+        ],
+        [
+          11561,
+          11643,
+          "    (drawerOpener?.isConnected?drawerOpener:document.getElementById('mobileControlsToggle'))?.focus({preventScroll:true});\n"
+        ],
+        [
+          11657,
+          11692,
+          " function syncDrawer(){\n"
+        ],
+        [
+          11908,
+          11968,
+          ""
+        ],
+        [
+          12583,
+          12774,
+          ""
+        ],
+        [
+          18897,
+          19085,
+          ""
+        ],
+        [
+          19120,
+          19166,
+          "  const focusAfterMove=reparent(previousFocus);\n"
+        ],
+        [
+          19216,
+          19681,
+          ""
+        ],
+        [
+          26194,
+          26292,
+          "  body.dataset.unifiedLayoutPasses=String(layoutPasses);body.dataset.unifiedLayout=compact?'mobile':'desktop';\n"
+        ],
+        [
+          26678,
+          26771,
+          ""
+        ],
+        [
+          26929,
+          27014,
+          ""
+        ]
+      ]
+    }
+  ]
+}

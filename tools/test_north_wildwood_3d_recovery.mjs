@@ -5,6 +5,7 @@ const classes=new Set();const body={dataset:{},classList:{add:n=>classes.add(n),
 const ctx={glMap:null,glMapPromise:null,glStyleReady:false,mapStylePromise:null,buildingDataPromise:null,document:{body,getElementById:()=>({})},map:null,window:{setTimeout,clearTimeout},console:{warn:()=>{}},MAP_MAX_ZOOM:20,DEFAULT_PITCH:0,DEFAULT_BEARING:0,TERRAIN_EXAGGERATION:4,loadMapLibreRuntime:async()=>{},load3dStyle:async()=>({}),syncBuildings3d:async()=>{throw Error('building request failed')},maplibregl:{Map:class{on(){} once(n,cb){cb()}getPitch(){return 0}remove(){this.removed=true}}}};
 for(const n of ['schedulePersistentNavControlSync','syncFloodPresentationMode','syncPersistentNavControl','addCore3dLayers','wire3dInteractions','wire3dContextRecovery','syncBoundary3d','syncFloodLayer3d','syncSatellite3d','syncRoadLabels3d','syncParcels3d','syncNsi3d','updateDiagnostics','suspendLeafletVisualLayers'])ctx[n]=()=>{};
 ctx.retryFloodRecovery3d=()=>Promise.resolve(false);
+ctx.disposePendingFloodFrame3d=()=>{};
 vm.createContext(ctx);vm.runInContext(fn('ensure3dMap'),ctx);await ctx.ensure3dMap();assert.equal(ctx.glMap,null);assert(!classes.has('map-3d-ready'));
 assert.equal(ctx.retryFloodRecovery3d,null,'Startup rollback cannot retain a retired map recovery action');
 const elements=new Map();let scripts=0;const runtime={window:{setTimeout,clearTimeout},mapLibreRuntimePromise:null,MAPLIBRE_CSS_URL:'style',MAPLIBRE_JS_URL:'script',document:{getElementById:id=>elements.get(id),createElement:tag=>({tag,dataset:{},remove(){elements.delete(this.id)},addEventListener:()=>{}}),head:{appendChild:el=>{elements.set(el.id,el);if(el.tag==='script')scripts++;queueMicrotask(()=>el.tag==='script'?el.onerror():el.onload());}}}};
@@ -122,6 +123,8 @@ function recoveryHarness(planes, visibleNativeMap = false) {
     console:{warn(...args){warnings.push(args);}},setStatus(message){statuses.push(message||null);},
     syncFloodLayer3d(){context.floodPlaneLayer=planes.shift()||null;},syncBuildings3d:async()=>{},
     waitForNativeFloodImage3d:async()=>true,
+    disposePendingFloodFrame3d(){},
+    floodDrapeIds:()=>({sourceId:'nw-flood-drape-source'}),
     restoreLeafletAfter3dFailure(instance){
       assert.equal(instance,mapInstance);
       context.glMap=null;

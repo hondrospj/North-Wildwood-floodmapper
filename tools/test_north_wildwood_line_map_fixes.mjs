@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
+import { readyAtomic3dFixture } from './test_north_wildwood_atomic_3d_commit.mjs';
 const read = name => fs.readFileSync(new URL(name, import.meta.url), 'utf8');
 const sources = [read('app/runtime/09-raster-lifecycle.js'), read('app/runtime/18-flood-frame-rendering.js'),
   read('app/runtime/20-timeline-rendering.js'), read('app/runtime/23-refresh-and-playback.js'),
@@ -28,7 +29,7 @@ let cases=0;
 // stop the current run, or report its obsolete error to the current user.
 for(const outcome of ['resolve','reject']) {
   const clock=timers(),pending=[],notices=[];
-  const c=vm.createContext({playTimer:null,playbackGeneration:0,playbackSpeedMultiplier:1,reschedulePlaybackFrame:null,playbackInFlight:false,playbackObservedDaysAdvanced:0,playbackPausedForConfirmation:false,currentSeriesHours:[{},{}],
+  const c=vm.createContext({playTimer:null,playbackGeneration:0,playbackSpeedMultiplier:1,reschedulePlaybackFrame:null,pendingPlaybackStep:null,playbackInFlight:false,playbackObservedDaysAdvanced:0,playbackPausedForConfirmation:false,currentSeriesHours:[{},{}],
     ...clock,performance:{now:()=>0},PLAYBACK_MINIMUM_FRAME_DELAY_MS:20,
     updatePlayPauseButton(){},setPlaybackStillThereOpen(){},toast:message=>notices.push(message),getPlaybackFrameDurationMs:()=>950,
     stepPlaybackForward(){const gate=deferred();pending.push(gate);return gate.promise;}});
@@ -50,7 +51,7 @@ for(const outcome of ['resolve','reject']) {
   let now = 0;
   const c = vm.createContext({
     ...clock, playTimer: null, playbackGeneration: 0, playbackSpeedMultiplier: 1,
-    reschedulePlaybackFrame: null, playbackObservedDaysAdvanced: 0,
+    reschedulePlaybackFrame: null, pendingPlaybackStep: null, playbackObservedDaysAdvanced: 0,
     playbackPausedForConfirmation: false, currentSeriesHours: [{}, {}],
     performance: {now: () => now}, PLAYBACK_MINIMUM_FRAME_DELAY_MS: 20,
     updatePlayPauseButton() {}, setPlaybackStillThereOpen() {},
@@ -117,7 +118,7 @@ function playbackFixture({entries, interval = 15} = {}) {
   let now = 0;
   const c = vm.createContext({
     ...clock, playTimer: null, playbackGeneration: 0, playbackSpeedMultiplier: 1,
-    reschedulePlaybackFrame: null, playbackObservedDaysAdvanced: 0,
+    reschedulePlaybackFrame: null, pendingPlaybackStep: null, playbackObservedDaysAdvanced: 0,
     playbackPausedForConfirmation: false, currentHourIndex: 0, currentViewType: 'forecast',
     currentSeriesHours: entries ?? playbackEntries(Array.from({length: 14}, (_, index) => 3.5 + 0.01 * index), {interval}),
     PLAYBACK_MINIMUM_FRAME_DELAY_MS: 20, PLAYBACK_SIMULATED_HOUR_MS: 950,
@@ -251,12 +252,38 @@ for (const [reason, levels, options, expected] of [
   await next;
   cases++;
 }
+// A late bounds error belongs only to the frame request that still owns the display.
+for (const obsolete of [false, true]) {
+  const bounds = deferred();
+  const notices = [];
+  let started = false, released = 0;
+  const c = vm.createContext({
+    currentDataMode: 'observed', lastRenderToken: 1,
+    document: {body: {dataset: {initialFloodFrame: 'ready'}}},
+    getStageValue: entry => entry.stage, toast: message => notices.push(message), ensureMap() {},
+    getHydraulicOverlayRecord: async () => ({url: 'https://example.test/frame.png'}), preloadImage: async () => true,
+    retainRasterObjectUrl: () => () => released++,
+    ensureOverlayBounds() { started = true; return bounds.promise; }
+  });
+  vm.runInContext(extract('setFloodLayer'), c);
+  const pending = c.setFloodLayer('depth', 4, 'slack', 1, {stage: 4}, []);
+  await flush();
+  assert.equal(started, true);
+  if (obsolete) c.lastRenderToken++;
+  bounds.reject(new Error('Could not load the flood outline.'));
+  assert.equal(await pending, false);
+  assert.deepEqual(notices.filter(Boolean), obsolete ? [] : ['Could not load the flood outline.']);
+  assert.equal(released, 1);
+  cases++;
+}
+
 // The actual image loaders terminate a held request, release resources, ignore
 // late events and permit a new request for the same URL.
 {
   const clock=timers(),images=[],released=[];
   class Image {constructor(){images.push(this);}set src(value){this.url=value;}get src(){return this.url;}}
   const c=vm.createContext({window:clock,Image,Promise,Error,URL,Date,exportInProgress:false,exportCancelRequested:false,
+    TOWN_CONFIG:{overlays:{worldFileRasterSize:{width:1,height:1}}},
     drainageRasterImageCache:new Map(),DRAINAGE_RASTER_IMAGE_CACHE_LIMIT:2,retainRasterObjectUrl:url=>()=>released.push(url),
     DEPTH_QUERY_PNG_URL:'https://example.test/query.png',DEVELOPED_QUERY_PNG_URL:'https://example.test/developed.png',depthQueryGridPromise:null,developedQueryGridPromise:null,
     DEPTH_QUERY_WEBP_URL:'',DEVELOPED_QUERY_WEBP_URL:'',
@@ -312,18 +339,23 @@ for(const outcome of ['ready','failure','superseded']) {
 // GPU readiness follows precisely this pending map/layer/request, including
 // another time selection, a context reset, a removed layer, and a replacement map.
 for(const outcome of ['ready','failed','new-selection','context-loss','removed-layer','replacement-map']) {
-  const gate=deferred(),layer={_url:'new'},old={_url:'old'},mapInstance={getPitch:()=>60,getSource:()=>({})};let restores=0;
-  const plane={textureReady:true,committedUrl:'old',whenReady:()=>gate.promise};
-  const c=vm.createContext({glMap:mapInstance,glStyleReady:true,lastRenderToken:10,pendingFloodLayer:layer,pendingFlood3dRequest:null,floodPlaneLayer:plane,currentFloodLayer:old,
-    document:{body:{dataset:{map3d:'ready'},classList:{contains:()=>true}}},map:{hasLayer:value=>value===c.pendingFloodLayer},
-    waitForNativeFloodImage3d:async()=>true,syncFloodLayer3d(){if(!c.pendingFlood3dRequest)restores++;}});
-  vm.runInContext(extract('prepareFloodFrame3d'),c);const job=c.prepareFloodFrame3d(layer,{stage:2},10);
+  const h=await readyAtomic3dFixture(60),c=h.c;
+  const job=c.prepareFloodFrame3d(h.newLayer,{stage:2},2);
+  h.finishNative('new');
   if(outcome==='new-selection')c.lastRenderToken++;
   if(outcome==='context-loss')c.glStyleReady=false;
   if(outcome==='removed-layer')c.pendingFloodLayer=null;
   if(outcome==='replacement-map')c.glMap={getPitch:()=>60};
-  if(outcome!=='failed')plane.committedUrl='new';gate.resolve(outcome!=='failed');
-  assert.equal(await job,outcome==='ready');assert.equal(c.pendingFlood3dRequest,null);assert.equal(restores,outcome==='ready'?0:1);cases++;
+  await h.finishImages('new',outcome!=='failed');
+  assert.equal(await job,outcome==='ready');
+  assert.equal(c.floodPlaneLayer,h.oldPlane,'Preparation cannot replace visible water');
+  assert.equal(h.oldPlane.committedUrl,'old');
+  if(outcome==='ready') {
+    assert.ok(c.pendingFlood3dRequest?.ready,'Certified candidates wait for their owner');
+    assert.equal(c.commitFloodFrame3d(h.newLayer,2),true);
+    assert.equal(c.floodPlaneLayer.committedUrl,'new');
+  }
+  assert.equal(c.pendingFlood3dRequest,null);cases++;
 }
 // A decoded image from an obsolete frame must not touch the GPU at all.
 {

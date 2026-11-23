@@ -123,6 +123,8 @@ for (const warmCamera of [undefined, false, "core", "deferred"]) {
   const context = {
     document: { body: { dataset: {} } },
     glMap: mapInstance,
+    glStyleReady: true,
+    preload3dGeneration: 0,
     buildingData: { features: [] },
     TERRAIN_EXAGGERATION: 4,
     loadMapLibreRuntime: async () => {}, load3dStyle: async () => {}, loadBuildingData: async () => {},

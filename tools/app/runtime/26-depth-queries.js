@@ -42,13 +42,20 @@
     }
 
     async function loadPackedQueryGrid(pngUrl, webpUrl, attempts = 1) {
+      const size = TOWN_CONFIG?.overlays?.worldFileRasterSize;
+      const validateGrid = grid => {
+        if (!grid || !Number.isInteger(grid.width) || grid.width <= 0 ||
+            !Number.isInteger(grid.height) || grid.height <= 0 ||
+            (size && (grid.width !== size.width || grid.height !== size.height))) {
+          throw new Error("Packed depth-query image does not match the native raster dimensions.");
+        }
+        return grid;
+      };
       if (webpUrl) {
         // Both formats contain the same packed RGBA cells. Bound the optional
         // delivery path so a stalled request still falls back to the original.
         try {
-          const grid = await loadDepthQueryPng(webpUrl, 5000);
-          const size = TOWN_CONFIG?.overlays?.worldFileRasterSize;
-          if (!size || (grid.width === size.width && grid.height === size.height)) return grid;
+          return validateGrid(await loadDepthQueryPng(webpUrl, 5000));
         } catch (_) {}
       }
       let lastError;
@@ -56,7 +63,7 @@
         try {
           const url = new URL(pngUrl);
           if (attempt) url.searchParams.set("_retry", String(Date.now()));
-          return await loadDepthQueryPng(url.href);
+          return validateGrid(await loadDepthQueryPng(url.href));
         } catch (error) {
           // A stalled transport has already used its full deadline. Let the
           // frame controller/user retry instead of doubling that wait.

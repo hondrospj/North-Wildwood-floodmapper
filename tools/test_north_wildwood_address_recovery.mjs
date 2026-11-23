@@ -143,6 +143,23 @@ for (const replacePopup of [false, true]) {
   assert.ok(t.marker3d);
   assert.equal(t.popups[1].removed, false);
 }
+// A weaker result cannot hide the exact street just because the providers
+// put both results at the same point.
+{
+  const approximate = { ok: true, json: async () => ({ candidates: [{
+    location: { x: -74.8, y: 39.005 }, address: '100 Ocean Ave, North Wildwood',
+    attributes: { Addr_type: 'PointAddress' }, score: 72
+  }] }) };
+  const exact = { ok: true, json: async () => [{
+    lat: '39.005', lon: '-74.8',
+    address: { house_number: '100', road: 'New Jersey Ave', village: 'North Wildwood' }
+  }] };
+  const t = setup(url => Promise.resolve(url.includes('arcgis') ? approximate : exact));
+  await t.context.searchTownAddress(t.input.value);
+  assert.match(t.status.textContent, /100 New Jersey Ave/);
+  assert.match(t.popups[0].html, /100 New Jersey Ave/);
+}
+
 // Both providers must return address-level precision for a numbered lookup.
 {
   const {context} = setup(never);

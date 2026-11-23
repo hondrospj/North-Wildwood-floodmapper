@@ -7,7 +7,7 @@ const playwright=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 const name=process.env.NWW_BROWSER||'chromium';
 const browser=await playwright[name].launch({headless:true,
  ...(name==='chromium'&&process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});
-const page=await browser.newPage({viewport:{width:375,height:400}});
+const page=await browser.newPage({viewport:{width:375,height:400},hasTouch:true});
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 try{
  await page.setContent(`<style>
@@ -41,6 +41,12 @@ try{
  await page.getByRole('tab',{name:'Tools',exact:true}).focus();await page.keyboard.press('Home');await settle();
  assert.equal(await panel.evaluate(el=>el.scrollTop),0,'Keyboard section navigation resets scroll');
  assert.equal(await page.getByRole('tab',{name:'Flood data',exact:true}).getAttribute('aria-selected'),'true');
+ await page.keyboard.press('Escape');await panel.waitFor({state:'hidden'});
+ const toggle=page.locator('#mobileControlsToggle');
+ await toggle.evaluate(button=>button.blur());
+ await toggle.tap();await panel.waitFor({state:'visible'});
+ await page.keyboard.press('Escape');await panel.waitFor({state:'hidden'});
+ await page.waitForFunction(()=>document.activeElement.id==='mobileControlsToggle');
  assert.deepEqual(errors,[]);
- console.log(`PASS ${name}: section changes reveal first controls; normal layout preserves drawer scroll`);
+ console.log(`PASS ${name}: section navigation preserves scroll and closing a touch-opened drawer restores focus`);
 }finally{await browser.close();}

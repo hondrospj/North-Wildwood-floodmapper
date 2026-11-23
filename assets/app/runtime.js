@@ -3861,25 +3861,28 @@ function setDatumHelpOpen(isOpen) {
         } finally {
           releaseDepth();
         }
-      })().catch(error => {
-        if (error?.name === "AbortError" || error?.name === "TimeoutError") {
+      })().then(record => {
+        // A canceled export stops only its wait. Complete shared-cache cleanup
+        // with the encoder so its late object URL cannot escape retirement.
+        if (cache !== bathtubStageOverlayCache) {
+          retireRasterObjectUrl(record?.url);
+          return null;
+        }
+        if (!record) {
           if (cache.get(key) === request) cache.delete(key);
+          return null;
+        }
+        return cacheBathtubStageOverlay(key, record);
+      }).catch(error => {
+        if (cache.get(key) === request) cache.delete(key);
+        if (error?.name === "AbortError" || error?.name === "TimeoutError") {
           throw error;
         }
         console.warn("Could not build Flood Stages with its Flood Depth uncertainty areas.", error);
         return null;
       });
       cache.set(key, request);
-      const record = await awaitRasterRequest(request);
-      if (cache !== bathtubStageOverlayCache) {
-        retireRasterObjectUrl(record?.url);
-        return null;
-      }
-      if (!record) {
-        cache.delete(key);
-        return null;
-      }
-      return cacheBathtubStageOverlay(key, record);
+      return awaitRasterRequest(request);
     }
 
     function cacheRasterComposite(cache, key, record, limit) {
@@ -9623,7 +9626,6 @@ function formatSelectedObservedDate(dateStr) {
         cell.textContent = value;
         btn.appendChild(cell);
       }
-      btn.setAttribute("aria-label", `#${event.rank} ${event.title}, ${stage}`);
       btn.addEventListener("click", () => {
         const closesDrawer = btn.closest("#topTidesModalList") && document.body.classList.contains("mobile-controls-open");
         // Close the parent before restoring focus from the child, so the
@@ -9900,8 +9902,8 @@ function formatSelectedObservedDate(dateStr) {
         try {
           await ensureOverlayBounds(overlayUrl);
         } catch (err) {
-          toast(err.message);
-          return;
+          if (token === lastRenderToken) toast(err.message);
+          return false;
         }
 
         if (token !== lastRenderToken) return;
@@ -9934,6 +9936,8 @@ function formatSelectedObservedDate(dateStr) {
           if (typeof window !== "undefined" && window.NORTH_WILDWOOD_3D?.prepareFloodFrame &&
               !await window.NORTH_WILDWOOD_3D.prepareFloodFrame(nextLayer, frameMetadata, token)) return false;
           if (token !== lastRenderToken || pendingFloodLayer !== nextLayer || !map.hasLayer(nextLayer)) return false;
+          if (typeof window !== "undefined" && window.NORTH_WILDWOOD_3D?.commitFloodFrame &&
+              !window.NORTH_WILDWOOD_3D.commitFloodFrame(nextLayer, token)) return false;
           nextLayer.setOpacity(overlayOpacity);
           nextLayer._floodmapperFrame = frameMetadata;
           currentFloodLayer = nextLayer;
@@ -9994,6 +9998,8 @@ function formatSelectedObservedDate(dateStr) {
         if (typeof window !== "undefined" && window.NORTH_WILDWOOD_3D?.prepareFloodFrame &&
             !await window.NORTH_WILDWOOD_3D.prepareFloodFrame(nextLayer, frameMetadata, token)) return false;
         if (token !== lastRenderToken || pendingFloodLayer !== nextLayer || !map.hasLayer(nextLayer)) return false;
+        if (typeof window !== "undefined" && window.NORTH_WILDWOOD_3D?.commitFloodFrame &&
+            !window.NORTH_WILDWOOD_3D.commitFloodFrame(nextLayer, token)) return false;
         nextLayer.setOpacity(overlayOpacity);
         nextLayer._floodmapperFrame = frameMetadata;
         currentFloodLayer = nextLayer;
@@ -10007,16 +10013,33 @@ function formatSelectedObservedDate(dateStr) {
       });
     }
 
-    async function renderHour(index) {
-      cancelTimelineSelection();
-      if (!currentSeriesHours.length) return;
+    function ownPlaybackFrame(playback, token) {
+      playback.renderToken = token;
+      if (playback.restoreDisplay) return;
+      const savedState = floodFrameState;
+      const savedRecovery = document.body.dataset.floodFrameRecovery;
+      const { frameMessage, frameState } = document.getElementById("floodFrameStatus")?.dataset || {};
+      playback.restoreDisplay = () => {
+        floodFrameState = savedState;
+        document.body.dataset.floodFrame = savedState;
+        if (savedRecovery == null) delete document.body.dataset.floodFrameRecovery;
+        else document.body.dataset.floodFrameRecovery = savedRecovery;
+        setFloodFrameStatus(frameMessage || "", frameState || "info");
+        updatePersistentDepthQueryPopup();
+      };
+    }
 
-      const entry = currentSeriesHours[index];
+    async function renderHour(index, { playback = null, observedSelection = null } = {}) {
+      cancelTimelineSelection();
+      const previousSeries = currentSeriesHours;
+      const requestedSeries = observedSelection?.series || previousSeries;
+
+      const entry = requestedSeries[index];
       if (!entry) return;
 
       const previousHourIndex = currentHourIndex;
-      const requestedSeries = currentSeriesHours;
       const token = ++lastRenderToken;
+      if (playback) ownPlaybackFrame(playback, token);
       requestedTimelineSelection = { series: requestedSeries, index, token };
       // Keep the last displayed frame visible while its replacement loads.
       floodFrameState = "loading";
@@ -10025,19 +10048,26 @@ function formatSelectedObservedDate(dateStr) {
 
       const rawStage = getStageValue(entry);
       const displayStage = getOverlayStage(rawStage);
-      const hydraulicPhase = getHydraulicPhaseForEntry(entry, index, currentSeriesHours);
-      const observedDate = entry.isDailyMaximum && currentViewType === "observed-day" &&
+      const hydraulicPhase = getHydraulicPhaseForEntry(entry, index, requestedSeries);
+      const observedDate = !observedSelection && entry.isDailyMaximum && currentViewType === "observed-day" &&
         entry.observedDate !== selectedObservedDate ? entry.observedDate : null;
       const observedDay = observedDate ? getObservedDayRecord(observedDate) : null;
-      const rawSeries = observedDay ? buildObservedCanonicalSeries(observedDay, observedDate) : currentRawSeriesHours;
+      const rawSeries = observedSelection?.rawSeries ?? (observedDay ? buildObservedCanonicalSeries(observedDay, observedDate) : currentRawSeriesHours);
+      const slider = document.getElementById("hourSlider");
       const commitSelection = () => {
+        if (playback) playback.renderToken = null;
+        observedSelection?.commit();
         currentHourIndex = index;
         if (observedDay) {
           // The month-wide Daily Max slider can change the selected day.
           // Commit its date and tide context only when this frame is displayed.
           setObservedDaySelection(observedDate, observedDay);
           currentRawSeriesHours = rawSeries;
-          renderCalendar().catch(error => toast(error.message));
+        }
+        if (observedSelection || observedDay) renderCalendar().catch(error => toast(error.message));
+        if (playback) {
+          slider.value = String(index);
+          updateSliderProgress();
         }
         renderSelectionMeta(entry, rawStage, displayStage);
         renderTimelineMeta(entry);
@@ -10045,9 +10075,10 @@ function formatSelectedObservedDate(dateStr) {
 
       updatePersistentDepthQueryPopup({ useRenderedFlood: false });
 
-      const slider = document.getElementById("hourSlider");
-      slider.value = String(index);
-      updateSliderProgress();
+      if (!playback) {
+        slider.value = String(index);
+        updateSliderProgress();
+      }
 
       if (displayStage == null) {
         commitSelection();
@@ -10067,12 +10098,12 @@ function formatSelectedObservedDate(dateStr) {
       const physicsUiIsActive = Boolean(physicsAsset);
       const physicsDailyUiWasActive = document.body.classList.contains("physics-daily-maximum-active");
       const physicsDailyUiIsActive = Boolean(physicsAsset && entry?.isDailyMaximum);
-      document.body.classList.toggle("physics-forecast-active", physicsUiIsActive);
-      document.body.classList.toggle("physics-daily-maximum-active", physicsDailyUiIsActive);
-      if (
-        physicsUiWasActive !== physicsUiIsActive ||
-        physicsDailyUiWasActive !== physicsDailyUiIsActive
-      ) renderLegend();
+      const updatePhysicsLegend = () => {
+        document.body.classList.toggle("physics-forecast-active", physicsUiIsActive);
+        document.body.classList.toggle("physics-daily-maximum-active", physicsDailyUiIsActive);
+        if (physicsUiWasActive !== physicsUiIsActive || physicsDailyUiWasActive !== physicsDailyUiIsActive) renderLegend();
+      };
+      if (!playback) updatePhysicsLegend();
       const note = physicsAsset
         ? (entry?.isDailyMaximum
           ? (currentOverlayMode === "dynamic"
@@ -10087,19 +10118,23 @@ function formatSelectedObservedDate(dateStr) {
       const ready = await renderFloodFrameWithRetry(() => physicsAsset
         ? setPhysicsFloodLayer(physicsAsset, token, entry, hydraulicPhase)
         : setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token, entry, rawSeries), token);
-      if (token !== lastRenderToken || requestedSeries !== currentSeriesHours) return false;
+      if (token !== lastRenderToken || previousSeries !== currentSeriesHours) return false;
       if (!ready) {
+        if (playback) playback.renderToken = null;
         requestedTimelineSelection = null;
         currentHourIndex = previousHourIndex;
         slider.value = String(previousHourIndex);
         updateSliderProgress();
-        document.body.classList.toggle("physics-forecast-active", physicsUiWasActive);
-        document.body.classList.toggle("physics-daily-maximum-active", physicsDailyUiWasActive);
-        if (physicsUiWasActive !== physicsUiIsActive || physicsDailyUiWasActive !== physicsDailyUiIsActive) renderLegend();
+        if (!playback) {
+          document.body.classList.toggle("physics-forecast-active", physicsUiWasActive);
+          document.body.classList.toggle("physics-daily-maximum-active", physicsDailyUiWasActive);
+          if (physicsUiWasActive !== physicsUiIsActive || physicsDailyUiWasActive !== physicsDailyUiIsActive) renderLegend();
+        }
         reportFloodFrameFailure();
         return false;
       }
       requestedTimelineSelection = null;
+      if (playback) updatePhysicsLegend();
       commitSelection();
       updateNsiStructureImpactLayer();
       floodFrameState = "ready";
@@ -10951,8 +10986,15 @@ function populateCalendarSelectors() {
     }
 
     async function loadObservedDay(dateStr, preferredHourIndex = null, preferredEntry = null, options = {}) {
-      cancelPendingFloodFrame();
+      const playback = options.playback;
+      if (playback) ownPlaybackFrame(playback, lastRenderToken);
+      else stopPlayback();
+      const token = cancelPendingFloodFrame();
       const generation = ++selectionGeneration;
+      if (playback) {
+        playback.renderToken = token;
+        playback.observedGeneration = generation;
+      }
       loadObservedDay.pendingSelection = { generation, dateStr };
       try {
       let archiveAvailable = true;
@@ -10961,9 +11003,17 @@ function populateCalendarSelectors() {
       } catch {
         archiveAvailable = false;
       }
-      if (generation !== selectionGeneration) return false;
+      if (generation !== selectionGeneration || token !== lastRenderToken) return false;
       const dayRecord = archiveAvailable ? getObservedDayRecord(dateStr) : null;
+      const failPlaybackDay = () => {
+        stopPlayback();
+        const message = "The next observed day could not load. Try selecting it again.";
+        setFloodFrameStatus(message, "error");
+        toast(message);
+        return false;
+      };
       if (!dayRecord) {
+        if (playback) return failPlaybackDay();
         currentDataMode = "observed";
         currentRawSeriesHours = [];
         currentSeriesHours = [];
@@ -10986,41 +11036,51 @@ function populateCalendarSelectors() {
         return false;
       }
 
-      const preservePlayback = Boolean(options && options.preservePlayback);
-      if (!preservePlayback) stopPlayback();
-      currentDataMode = "observed";
-      updateDataModeButtons();
-
-      // Once data is committed, an interval change must rebuild this series
-      // rather than only updating the cadence of a still-pending request.
-      if (loadObservedDay.pendingSelection?.generation === generation) loadObservedDay.pendingSelection = null;
-      topTideEvents = buildTopTideEvents();
-      setObservedDaySelection(dateStr, dayRecord);
-      currentRawSeriesHours = buildObservedCanonicalSeries(dayRecord, dateStr);
-      currentSeriesHours = getTimelineIntervalMinutes() === 1440
+      const rawSeries = buildObservedCanonicalSeries(dayRecord, dateStr);
+      const daily = getTimelineIntervalMinutes() === 1440;
+      const series = daily
         ? buildObservedDailyMaximumSeries(dateStr.slice(0, 7))
-        : sampleCanonicalHydraulicSeries(currentRawSeriesHours, getTimelineIntervalMinutes());
-      currentViewType = "observed-day";
-      currentTopTideIndex = null;
+        : sampleCanonicalHydraulicSeries(rawSeries, getTimelineIntervalMinutes());
 
-      syncSliderBounds();
+      let index;
       if (preferredEntry) {
-        currentHourIndex = findClosestMeasuredEntryIndex(currentSeriesHours, preferredEntry);
-      } else if (getTimelineIntervalMinutes() === 1440) {
-        const selectedDayIndex = currentSeriesHours.findIndex(entry => entry?.observedDate === dateStr);
-        currentHourIndex = selectedDayIndex >= 0 ? selectedDayIndex : getPeakHourIndex(currentSeriesHours);
+        index = findClosestMeasuredEntryIndex(series, preferredEntry);
+      } else if (daily) {
+        const selectedDayIndex = series.findIndex(entry => entry?.observedDate === dateStr);
+        index = selectedDayIndex >= 0 ? selectedDayIndex : getPeakHourIndex(series);
       } else if (options.dayStep) {
-        currentHourIndex = options.dayStep < 0 ? Math.max(0, currentSeriesHours.length - 1) : 0;
+        index = options.dayStep < 0 ? Math.max(0, series.length - 1) : 0;
       } else if (preferredHourIndex != null) {
-        currentHourIndex = Math.max(0, Math.min(preferredHourIndex, Math.max(0, currentSeriesHours.length - 1)));
+        index = Math.max(0, Math.min(preferredHourIndex, Math.max(0, series.length - 1)));
       } else {
-        currentHourIndex = getPeakHourIndex(currentSeriesHours);
+        index = getPeakHourIndex(series);
       }
-      document.getElementById("hourSlider").value = String(currentHourIndex);
 
-      await renderCalendar();
-      if (generation !== selectionGeneration) return false;
-      const rendered = await renderHour(currentHourIndex);
+      const commit = () => {
+        currentDataMode = "observed";
+        currentViewType = "observed-day";
+        currentTopTideIndex = null;
+        // Cadence changes rebuild the committed series, rather than editing an in-flight request.
+        if (loadObservedDay.pendingSelection?.generation === generation) loadObservedDay.pendingSelection = null;
+        topTideEvents = buildTopTideEvents();
+        setObservedDaySelection(dateStr, dayRecord);
+        currentRawSeriesHours = rawSeries;
+        currentSeriesHours = series;
+        currentHourIndex = index;
+        updateDataModeButtons();
+        syncSliderBounds();
+        document.getElementById("hourSlider").value = String(index);
+      };
+
+      if (!playback) {
+        commit();
+        await renderCalendar();
+        if (generation !== selectionGeneration || token !== lastRenderToken) return false;
+      } else if (!series[index]) {
+        return failPlaybackDay();
+      }
+      const observedSelection = playback ? { series, rawSeries, commit } : null;
+      const rendered = await renderHour(index, { playback, observedSelection });
       if (rendered === false || generation !== selectionGeneration) return false;
       renderTopTides();
       } finally {
@@ -11154,6 +11214,7 @@ function populateCalendarSelectors() {
       const nextMinutes = requested === 15 || requested === 1440 ? requested : 60;
       const previousMinutes = getTimelineIntervalMinutes();
       if (nextMinutes === previousMinutes) return;
+      stopPlayback();
 
       // Interval choices belong to a pending data selection. They must not
       // cancel its request or preserve a timestamp from the previous mode.
@@ -11166,7 +11227,6 @@ function populateCalendarSelectors() {
       const topTideSelectionPending = loadTopTideEvent.pendingSelectionGeneration === selectionGeneration;
       const forecastSelectionPending = currentDataMode === "forecast" && loadForecast.pendingSelectionGeneration === selectionGeneration;
       if (observedSelectionPending || modeledSelectionPending || topTideSelectionPending || forecastSelectionPending) {
-        stopPlayback();
         toast("");
         currentTimelineIntervalMinutes = nextMinutes;
         updateTimelineIntervalUI();
@@ -11176,7 +11236,6 @@ function populateCalendarSelectors() {
       const observedDate = referenceEntry?.observedDate || selectedObservedDate;
       const generation = ++selectionGeneration;
       const floodSelectionToken = cancelPendingFloodFrame();
-      stopPlayback();
       toast("");
       currentTimelineIntervalMinutes = nextMinutes;
       updateTimelineIntervalUI();
@@ -11239,8 +11298,8 @@ function populateCalendarSelectors() {
     async function switchOverlayMode(mode) {
       if (mode === currentOverlayMode) return;
 
-      const index = getTimelineNavigationIndex();
       stopPlayback();
+      const index = getTimelineNavigationIndex();
       const dataSelectionPending = (currentDataMode === "forecast" &&
         loadForecast.pendingSelectionGeneration === selectionGeneration) ||
         (currentDataMode === "observed" && (
@@ -11558,11 +11617,13 @@ function populateCalendarSelectors() {
     let playbackGeneration = 0;
     let playbackSpeedMultiplier = 1;
     let reschedulePlaybackFrame = null;
+    let pendingPlaybackStep = null;
 
     function togglePlaybackSpeed(event) {
       playbackSpeedMultiplier = playbackSpeedMultiplier === 1 ? 2 : 1;
       const button = event.currentTarget;
       button.textContent = `${playbackSpeedMultiplier}×`;
+      button.setAttribute("aria-description", `Current playback speed: ${playbackSpeedMultiplier}×`);
       button.setAttribute("aria-pressed", String(playbackSpeedMultiplier === 2));
       reschedulePlaybackFrame?.();
     }
@@ -11574,6 +11635,16 @@ function populateCalendarSelectors() {
         clearTimeout(playTimer);
         clearInterval(playTimer);
         playTimer = null;
+      }
+      const step = pendingPlaybackStep;
+      pendingPlaybackStep = null;
+      if (step?.renderToken != null && step.renderToken === lastRenderToken) {
+        if (step.observedGeneration != null && step.observedGeneration === selectionGeneration) {
+          ++selectionGeneration;
+          loadObservedDay.pendingSelection = null;
+        }
+        cancelPendingFloodFrame();
+        step.restoreDisplay();
       }
       updatePlayPauseButton();
     }
@@ -11612,13 +11683,13 @@ function populateCalendarSelectors() {
       }
     }
 
-    async function stepSeriesBy(delta) {
+    async function stepSeriesBy(delta, playback = null) {
       if (!currentSeriesHours.length) return;
 
-      const navigationIndex = getTimelineNavigationIndex();
+      const navigationIndex = playback ? currentHourIndex : getTimelineNavigationIndex();
       const nextIndex = navigationIndex + delta;
       if (nextIndex >= 0 && nextIndex < currentSeriesHours.length) {
-        return renderHour(nextIndex);
+        return renderHour(nextIndex, { playback });
       }
 
       if (currentViewType === "observed-day" && selectedObservedDate) {
@@ -11628,10 +11699,7 @@ function populateCalendarSelectors() {
           : selectedObservedDate;
         const neighborDate = getNeighborObservedDate(displayedDate, delta > 0 ? 1 : -1);
         if (neighborDate) {
-          const playback = playTimer ? playbackGeneration : null;
-          const load = loadObservedDay(neighborDate, null, null, {
-            preservePlayback: playback !== null, dayStep: delta
-          });
+          const load = loadObservedDay(neighborDate, null, null, { playback, dayStep: delta });
           const generation = selectionGeneration;
           const loaded = await load;
           return loaded !== false && generation === selectionGeneration && currentViewType === "observed-day" &&
@@ -11639,11 +11707,7 @@ function populateCalendarSelectors() {
         }
       }
 
-      if (delta > 0) {
-        await renderHour(0);
-      } else {
-        await renderHour(Math.max(0, currentSeriesHours.length - 1));
-      }
+      return renderHour(delta > 0 ? 0 : currentSeriesHours.length - 1, { playback });
     }
 
     function getPlaybackCatchUpStep() {
@@ -11677,7 +11741,14 @@ function populateCalendarSelectors() {
       const generation = playbackGeneration;
       const previousDate = currentViewType === "observed-day"
         ? currentSeriesHours[currentHourIndex]?.observedDate || selectedObservedDate : null;
-      const advanced = await stepSeriesBy(catchUp ? getPlaybackCatchUpStep() : 1);
+      const step = playTimer ? {} : null;
+      if (step) pendingPlaybackStep = step;
+      let advanced;
+      try {
+        advanced = await stepSeriesBy(catchUp ? getPlaybackCatchUpStep() : 1, step);
+      } finally {
+        if (pendingPlaybackStep === step) pendingPlaybackStep = null;
+      }
       if (!playTimer || generation !== playbackGeneration) return;
       if (!currentSeriesHours.length) {
         stopPlayback();
@@ -12983,13 +13054,20 @@ function startPlayback() {
     }
 
     async function loadPackedQueryGrid(pngUrl, webpUrl, attempts = 1) {
+      const size = TOWN_CONFIG?.overlays?.worldFileRasterSize;
+      const validateGrid = grid => {
+        if (!grid || !Number.isInteger(grid.width) || grid.width <= 0 ||
+            !Number.isInteger(grid.height) || grid.height <= 0 ||
+            (size && (grid.width !== size.width || grid.height !== size.height))) {
+          throw new Error("Packed depth-query image does not match the native raster dimensions.");
+        }
+        return grid;
+      };
       if (webpUrl) {
         // Both formats contain the same packed RGBA cells. Bound the optional
         // delivery path so a stalled request still falls back to the original.
         try {
-          const grid = await loadDepthQueryPng(webpUrl, 5000);
-          const size = TOWN_CONFIG?.overlays?.worldFileRasterSize;
-          if (!size || (grid.width === size.width && grid.height === size.height)) return grid;
+          return validateGrid(await loadDepthQueryPng(webpUrl, 5000));
         } catch (_) {}
       }
       let lastError;
@@ -12997,7 +13075,7 @@ function startPlayback() {
         try {
           const url = new URL(pngUrl);
           if (attempt) url.searchParams.set("_retry", String(Date.now()));
-          return await loadDepthQueryPng(url.href);
+          return validateGrid(await loadDepthQueryPng(url.href));
         } catch (error) {
           // A stalled transport has already used its full deadline. Let the
           // frame controller/user retry instead of doubling that wait.
@@ -14174,18 +14252,16 @@ function startPlayback() {
       return candidates.map(item => normalizeArcgisTownCandidate(item, clean)).filter(Boolean);
     }
 
-    function pickBestTownAddressCandidate(candidates, clean) {
-      const seen = new Set();
-      const unique = [];
-      candidates.forEach(candidate => {
-        const key = `${candidate.lat.toFixed(6)},${candidate.lon.toFixed(6)}`;
-        if (seen.has(key)) return;
-        seen.add(key);
-        candidate.score = townAddressCandidateScore(candidate, clean);
-        unique.push(candidate);
-      });
-      unique.sort((a, b) => b.score - a.score);
-      return unique[0] || null;
+    function pickBestTownAddressCandidate(candidates) {
+      // The providers already score their normalized street matches. A
+      // shared coordinate can still carry a more precise address label.
+      let best = null;
+      for (const candidate of candidates) {
+        if (Number.isFinite(candidate.score) && (!best || candidate.score > best.score)) {
+          best = candidate;
+        }
+      }
+      return best;
     }
 
     function getCurrentFloodThresholdsForDatum() {
@@ -14258,7 +14334,7 @@ function startPlayback() {
         ]);
         if (generation !== townAddressSearchGeneration) return;
         const candidates = candidateSets.flatMap(result => result.status === "fulfilled" && Array.isArray(result.value) ? result.value : []);
-        const match = pickBestTownAddressCandidate(candidates, clean);
+        const match = pickBestTownAddressCandidate(candidates);
         if (!match) {
           setTownAddressStatus(`No close ${townName} match found. Try a street number and street name.`, "error");
           return;

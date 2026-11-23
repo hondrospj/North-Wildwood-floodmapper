@@ -261,8 +261,15 @@ function populateCalendarSelectors() {
     }
 
     async function loadObservedDay(dateStr, preferredHourIndex = null, preferredEntry = null, options = {}) {
-      cancelPendingFloodFrame();
+      const playback = options.playback;
+      if (playback) ownPlaybackFrame(playback, lastRenderToken);
+      else stopPlayback();
+      const token = cancelPendingFloodFrame();
       const generation = ++selectionGeneration;
+      if (playback) {
+        playback.renderToken = token;
+        playback.observedGeneration = generation;
+      }
       loadObservedDay.pendingSelection = { generation, dateStr };
       try {
       let archiveAvailable = true;
@@ -271,9 +278,17 @@ function populateCalendarSelectors() {
       } catch {
         archiveAvailable = false;
       }
-      if (generation !== selectionGeneration) return false;
+      if (generation !== selectionGeneration || token !== lastRenderToken) return false;
       const dayRecord = archiveAvailable ? getObservedDayRecord(dateStr) : null;
+      const failPlaybackDay = () => {
+        stopPlayback();
+        const message = "The next observed day could not load. Try selecting it again.";
+        setFloodFrameStatus(message, "error");
+        toast(message);
+        return false;
+      };
       if (!dayRecord) {
+        if (playback) return failPlaybackDay();
         currentDataMode = "observed";
         currentRawSeriesHours = [];
         currentSeriesHours = [];
@@ -296,41 +311,51 @@ function populateCalendarSelectors() {
         return false;
       }
 
-      const preservePlayback = Boolean(options && options.preservePlayback);
-      if (!preservePlayback) stopPlayback();
-      currentDataMode = "observed";
-      updateDataModeButtons();
-
-      // Once data is committed, an interval change must rebuild this series
-      // rather than only updating the cadence of a still-pending request.
-      if (loadObservedDay.pendingSelection?.generation === generation) loadObservedDay.pendingSelection = null;
-      topTideEvents = buildTopTideEvents();
-      setObservedDaySelection(dateStr, dayRecord);
-      currentRawSeriesHours = buildObservedCanonicalSeries(dayRecord, dateStr);
-      currentSeriesHours = getTimelineIntervalMinutes() === 1440
+      const rawSeries = buildObservedCanonicalSeries(dayRecord, dateStr);
+      const daily = getTimelineIntervalMinutes() === 1440;
+      const series = daily
         ? buildObservedDailyMaximumSeries(dateStr.slice(0, 7))
-        : sampleCanonicalHydraulicSeries(currentRawSeriesHours, getTimelineIntervalMinutes());
-      currentViewType = "observed-day";
-      currentTopTideIndex = null;
+        : sampleCanonicalHydraulicSeries(rawSeries, getTimelineIntervalMinutes());
 
-      syncSliderBounds();
+      let index;
       if (preferredEntry) {
-        currentHourIndex = findClosestMeasuredEntryIndex(currentSeriesHours, preferredEntry);
-      } else if (getTimelineIntervalMinutes() === 1440) {
-        const selectedDayIndex = currentSeriesHours.findIndex(entry => entry?.observedDate === dateStr);
-        currentHourIndex = selectedDayIndex >= 0 ? selectedDayIndex : getPeakHourIndex(currentSeriesHours);
+        index = findClosestMeasuredEntryIndex(series, preferredEntry);
+      } else if (daily) {
+        const selectedDayIndex = series.findIndex(entry => entry?.observedDate === dateStr);
+        index = selectedDayIndex >= 0 ? selectedDayIndex : getPeakHourIndex(series);
       } else if (options.dayStep) {
-        currentHourIndex = options.dayStep < 0 ? Math.max(0, currentSeriesHours.length - 1) : 0;
+        index = options.dayStep < 0 ? Math.max(0, series.length - 1) : 0;
       } else if (preferredHourIndex != null) {
-        currentHourIndex = Math.max(0, Math.min(preferredHourIndex, Math.max(0, currentSeriesHours.length - 1)));
+        index = Math.max(0, Math.min(preferredHourIndex, Math.max(0, series.length - 1)));
       } else {
-        currentHourIndex = getPeakHourIndex(currentSeriesHours);
+        index = getPeakHourIndex(series);
       }
-      document.getElementById("hourSlider").value = String(currentHourIndex);
 
-      await renderCalendar();
-      if (generation !== selectionGeneration) return false;
-      const rendered = await renderHour(currentHourIndex);
+      const commit = () => {
+        currentDataMode = "observed";
+        currentViewType = "observed-day";
+        currentTopTideIndex = null;
+        // Cadence changes rebuild the committed series, rather than editing an in-flight request.
+        if (loadObservedDay.pendingSelection?.generation === generation) loadObservedDay.pendingSelection = null;
+        topTideEvents = buildTopTideEvents();
+        setObservedDaySelection(dateStr, dayRecord);
+        currentRawSeriesHours = rawSeries;
+        currentSeriesHours = series;
+        currentHourIndex = index;
+        updateDataModeButtons();
+        syncSliderBounds();
+        document.getElementById("hourSlider").value = String(index);
+      };
+
+      if (!playback) {
+        commit();
+        await renderCalendar();
+        if (generation !== selectionGeneration || token !== lastRenderToken) return false;
+      } else if (!series[index]) {
+        return failPlaybackDay();
+      }
+      const observedSelection = playback ? { series, rawSeries, commit } : null;
+      const rendered = await renderHour(index, { playback, observedSelection });
       if (rendered === false || generation !== selectionGeneration) return false;
       renderTopTides();
       } finally {
@@ -464,6 +489,7 @@ function populateCalendarSelectors() {
       const nextMinutes = requested === 15 || requested === 1440 ? requested : 60;
       const previousMinutes = getTimelineIntervalMinutes();
       if (nextMinutes === previousMinutes) return;
+      stopPlayback();
 
       // Interval choices belong to a pending data selection. They must not
       // cancel its request or preserve a timestamp from the previous mode.
@@ -476,7 +502,6 @@ function populateCalendarSelectors() {
       const topTideSelectionPending = loadTopTideEvent.pendingSelectionGeneration === selectionGeneration;
       const forecastSelectionPending = currentDataMode === "forecast" && loadForecast.pendingSelectionGeneration === selectionGeneration;
       if (observedSelectionPending || modeledSelectionPending || topTideSelectionPending || forecastSelectionPending) {
-        stopPlayback();
         toast("");
         currentTimelineIntervalMinutes = nextMinutes;
         updateTimelineIntervalUI();
@@ -486,7 +511,6 @@ function populateCalendarSelectors() {
       const observedDate = referenceEntry?.observedDate || selectedObservedDate;
       const generation = ++selectionGeneration;
       const floodSelectionToken = cancelPendingFloodFrame();
-      stopPlayback();
       toast("");
       currentTimelineIntervalMinutes = nextMinutes;
       updateTimelineIntervalUI();
@@ -549,8 +573,8 @@ function populateCalendarSelectors() {
     async function switchOverlayMode(mode) {
       if (mode === currentOverlayMode) return;
 
-      const index = getTimelineNavigationIndex();
       stopPlayback();
+      const index = getTimelineNavigationIndex();
       const dataSelectionPending = (currentDataMode === "forecast" &&
         loadForecast.pendingSelectionGeneration === selectionGeneration) ||
         (currentDataMode === "observed" && (

@@ -151,13 +151,14 @@ async function graphics(page) {
     assert.equal(await page.locator('#map3dStatus').isVisible(),true);
     await page.evaluate(()=>window.__holisticLoss.restoreContext());
     await page.waitForFunction(()=>{
-      const m=window.NORTH_WILDWOOD_3D.getMap();
-      return document.body.dataset.map3d==='ready' && document.body.dataset.map3dFloodTexture==='ready' && !!m.getLayer('nw-flood-overlay');
+      const renderer=window.NORTH_WILDWOOD_3D;
+      return document.body.dataset.map3d==='ready' && document.body.dataset.map3dFloodTexture==='ready' &&
+        !!renderer.getMap().getLayer(renderer.state().floodLayerId);
     },{}, {timeout:45000});
     const after=await page.evaluate(()=>{
-      const m=window.NORTH_WILDWOOD_3D.getMap();
+      const renderer=window.NORTH_WILDWOOD_3D,m=renderer.getMap(),state=renderer.state();
       return {stage:document.getElementById('stageText').textContent,time:document.getElementById('timeText').textContent,
-        custom:!!m.getLayer('nw-flood-overlay'),drape:m.getLayoutProperty('nw-flood-drape','visibility'),events:window.__holisticEvents};
+        custom:!!m.getLayer(state.floodLayerId),drape:m.getLayoutProperty(state.floodDrapeLayerId,'visibility'),events:window.__holisticEvents};
     });
     assert.equal(after.stage,before.stage);assert.equal(after.time,before.time);
     assert.equal(after.custom,true);assert.equal(after.drape,'none');

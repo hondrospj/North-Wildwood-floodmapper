@@ -102,6 +102,97 @@ function renderFixture(initialIndex = 0, separateLoads = false) {
   load(context, ['cancelTimelineSelection', 'flushTimelineSelection', 'queueTimelineSelection', 'stepTimeline', 'stepSeriesBy', 'renderHour']);
   return { context, gate, requests, labels, slider, tasks, requestGates };
 }
+
+function enablePlaybackTestState(context) {
+  Object.assign(context, {
+    playTimer: 1, playbackGeneration: 0, pendingPlaybackStep: null, reschedulePlaybackFrame: null,
+    playbackObservedDaysAdvanced: 0, playbackPausedForConfirmation: false, selectionGeneration: 0,
+    PLAYBACK_DAY_CONFIRMATION_INTERVAL: 20, persistentDepthQueryContext: null,
+    clearTimeout() {}, clearInterval() {}, updatePlayPauseButton() {}, setPlaybackStillThereOpen() {}
+  });
+  load(context, ['ownPlaybackFrame', 'cancelPendingFloodFrame', 'clearPlaybackTimer', 'stopPlayback', 'stepPlaybackForward']);
+}
+
+await test('Pause cancels the pending playback frame and a restart retries the next displayed index', async () => {
+  const f = renderFixture(0, true);
+  const c = f.context;
+  enablePlaybackTestState(c);
+  const first = c.stepPlaybackForward();
+  assert.equal(f.slider.value, '0', 'The playback slider must wait for the frame to commit');
+  c.stopPlayback();
+  assert.equal(c.floodFrameState, 'ready');
+  c.playTimer = 2;
+  const second = c.stepPlaybackForward();
+  assert.deepEqual(f.requests, [1, 1]);
+  f.requestGates[0].resolve();
+  await first;
+  assert.equal(c.currentHourIndex, 0);
+  assert.equal(c.currentFloodLayer._floodmapperFrame.stage, 0);
+  f.requestGates[1].resolve();
+  await second;
+  assert.equal(c.currentHourIndex, 1);
+  assert.equal(f.slider.value, '1');
+});
+
+await test('Stopping playback does not cancel a pending manual frame', async () => {
+  const f = renderFixture(0, true);
+  const c = f.context;
+  enablePlaybackTestState(c);
+  const manual = c.renderHour(2);
+  c.stopPlayback();
+  f.requestGates[0].resolve();
+  await manual;
+  assert.equal(c.currentHourIndex, 2);
+  assert.equal(c.currentFloodLayer._floodmapperFrame.stage, 2);
+});
+
+for (const phase of ['archive', 'raster', 'success', 'missing archive', 'manual archive supersession']) {
+  await test(`Observed playback handoff preserves the displayed day through ${phase}`, async () => {
+    const f = renderFixture(1, true);
+    const c = f.context;
+    enablePlaybackTestState(c);
+    const oldDate = '2026-11-23', nextDate = '2026-11-24';
+    const oldSeries = [0, 1].map(stage => ({stage, observedDate: oldDate}));
+    const nextSeries = [2, 3].map(stage => ({stage, observedDate: nextDate}));
+    const archive = deferred();
+    Object.assign(c, {
+      currentViewType: 'observed-day', currentDataMode: 'observed', selectedObservedDate: oldDate,
+      currentSeriesHours: oldSeries, currentRawSeriesHours: oldSeries, getTimelineIntervalMinutes: () => 60,
+      getNeighborObservedDate: () => nextDate, ensureObservedArchiveForDate: () => archive.promise,
+      getObservedDayRecord: () => phase === 'missing archive' ? null : {date: nextDate, peakNAVD88: 3},
+      buildObservedCanonicalSeries: () => nextSeries, sampleCanonicalHydraulicSeries: series => series,
+      getPeakHourIndex: () => 0,
+      topTideEvents: [], buildTopTideEvents: () => [], formatStageForDisplay: String, normalizeStageValue: Number,
+      renderCalendar: async () => {}, renderTopTides() {}, updateDataModeButtons() {}, syncSliderBounds() {}
+    });
+    load(c, ['loadObservedDay', 'setObservedDaySelection']);
+    const manual = phase === 'manual archive supersession';
+    const pending = manual ? c.loadObservedDay(nextDate) : c.stepPlaybackForward();
+    if (manual) {
+      const newer = c.renderHour(0);
+      f.requestGates[0].resolve();
+      await newer;
+    }
+    if (phase === 'archive') c.stopPlayback();
+    archive.resolve();
+    await flush();
+    assert.equal(c.selectedObservedDate, oldDate);
+    assert.equal(c.currentSeriesHours, oldSeries);
+    assert.equal(f.slider.value, manual ? '0' : '1');
+    if (phase === 'raster') c.stopPlayback();
+    if (phase === 'raster' || phase === 'success') {
+      assert.deepEqual(f.requests, [2]);
+      f.requestGates[0].resolve();
+    } else assert.deepEqual(f.requests, manual ? [0] : []);
+    await pending;
+    assert.equal(c.selectedObservedDate, phase === 'success' ? nextDate : oldDate);
+    assert.equal(c.currentSeriesHours, phase === 'success' ? nextSeries : oldSeries);
+    assert.equal(c.currentFloodLayer._floodmapperFrame.stage, phase === 'success' ? 2 : manual ? 0 : 1);
+    assert.equal(c.playbackObservedDaysAdvanced, phase === 'success' ? 1 : 0);
+    assert.equal(c.floodFrameState, 'ready');
+  });
+}
+
 for (const row of [
   { name: 'Two forward timeline activations accumulate during a slow render', start: 0, directions: [1, 1], expected: 2 },
   { name: 'Two backward timeline activations accumulate during a slow render', start: 2, directions: [-1, -1], expected: 0 },
@@ -171,18 +262,23 @@ function dailyFixture(month, selectedDate, index, cadence = 1440) {
   const context = vm.createContext({ console, currentSeriesHours: cadence === 1440 ? months[month].slice() : dayHours(selectedDate),
     currentRawSeriesHours: [], currentHourIndex: index,
     currentViewType: 'observed-day', currentDataMode: 'observed', selectedObservedDate: selectedDate, playTimer: null,
-    playbackGeneration: 0, playbackObservedDaysAdvanced: 0, PLAYBACK_DAY_CONFIRMATION_INTERVAL: 1,
+    playbackGeneration: 0, pendingPlaybackStep: null, playbackObservedDaysAdvanced: 0, PLAYBACK_DAY_CONFIRMATION_INTERVAL: 1,
     pausePlaybackForDayConfirmation() { context.confirmationOpened = true; },
     lastRenderToken: 0, selectionGeneration: 0, topTideEvents: [], pendingTimelineSelection: null,
     requestedTimelineIndex: null, requestedTimelineSeries: null, requestedTimelineSelection: null,
     getObservedDays: () => allDays, cancelPendingFloodFrame: () => ++context.lastRenderToken,
+    ownPlaybackFrame() {},
     ensureObservedArchiveForDate: async date => loaded.push(date), getObservedDayRecord: date => ({ date, peakNAVD88: 4 }),
     stopPlayback() {}, updateDataModeButtons() {}, buildTopTideEvents: () => [], buildObservedCanonicalSeries: day => dayHours(day.date),
     getTimelineIntervalMinutes: () => cadence, buildObservedDailyMaximumSeries: key => months[key].slice(),
     sampleCanonicalHydraulicSeries: series => series, getPeakHourIndex: () => 1,
     formatStageForDisplay: value => value + ' ft', normalizeStageValue: value => value, syncSliderBounds() {},
     document: { getElementById: () => slider }, renderCalendar: async () => {}, renderTopTides() {},
-    renderHour: async idx => { context.currentHourIndex = idx; displayed.push(context.currentSeriesHours[idx].observedDate); },
+    renderHour: async (idx, {observedSelection} = {}) => {
+      observedSelection?.commit();
+      context.currentHourIndex = idx;
+      displayed.push(context.currentSeriesHours[idx].observedDate);
+    },
   });
   loadOptional(context, ['getRequestedTimelineIndex', 'getTimelineSelectionIndex', 'getTimelineNavigationIndex']);
   loadOptional(context, ['setObservedDaySelection']);

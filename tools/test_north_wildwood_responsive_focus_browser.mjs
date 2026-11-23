@@ -34,6 +34,12 @@ try {
   report.compact = await focusAfterLayout(compact);
   assert.deepEqual(report.desktop, { focus: "openDownloadModalBtn", reachable: true, drawerOpen: false });
   assert.deepEqual(report.compact, { focus: "mobileControlsToggle", reachable: true, drawerOpen: false });
+  await page.locator("#mobileControlsToggle").press("Enter");
+  const toolsTab = page.locator('#nwwMobileControlHeader [data-group="tools"]');
+  await toolsTab.click();
+  await toolsTab.focus();
+  report.fromToolsTab = await focusAfterLayout(desktop);
+  assert.deepEqual(report.fromToolsTab, { focus: "openDownloadModalBtn", reachable: true, drawerOpen: false });
   assert.deepEqual(report.pageErrors, []);
   report.passed = true;
 } catch (error) {

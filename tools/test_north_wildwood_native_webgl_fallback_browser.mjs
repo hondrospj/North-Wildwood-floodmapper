@@ -168,7 +168,7 @@ try {
         assert.equal(restored.visibleLeaflet, false);
         assert.equal(restored.overlayOpacity, expectedOpacity);
         assert.equal(await page.evaluate(() => NORTH_WILDWOOD_3D.getMap()
-          .getPaintProperty('nw-flood-drape', 'raster-opacity')), expectedOpacity);
+          .getPaintProperty(NORTH_WILDWOOD_3D.state().floodDrapeLayerId, 'raster-opacity')), expectedOpacity);
         for (const key of ['currentTime', 'frameTime', 'overlayMode',
           'nativePitch', 'nativeZoom', 'nativeCenter', 'layers']) {
           assert.deepEqual(restored[key], initial[key], key);

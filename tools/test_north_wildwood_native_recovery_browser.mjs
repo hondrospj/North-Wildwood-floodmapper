@@ -13,7 +13,7 @@ const browser=await engine.launch({headless:true,...(name==='edge'?{channel:'mse
 const url=process.env.NWW_TEST_URL||'http://127.0.0.1:9043/index.html';
 const out=process.env.NWW_AUDIT_OUTPUT||fs.mkdtempSync(path.join(os.tmpdir(),'nww-native-recovery-'));fs.mkdirSync(out,{recursive:true});
 const result={browser:name,version:browser.version(),cases:[],errors:[]};
-async function snapshot(page){return page.evaluate(()=>{const renderer=window.NORTH_WILDWOOD_3D.getMap(),source=renderer?.getSource('nw-flood-drape-source');return{
+async function snapshot(page){return page.evaluate(()=>{const renderer=window.NORTH_WILDWOOD_3D.getMap(),source=renderer?.getSource(window.NORTH_WILDWOOD_3D.state().floodDrapeSourceId);return{
  state:document.body.dataset.map3d,plane:document.body.dataset.map3dFloodTexture,nativeLoaded:source?.loaded(),nativeImage:!!source?.image,
  nativeUrl:source?.url,pitch:renderer?.getPitch(),bearing:renderer?.getBearing(),zoom:renderer?.getZoom(),center:renderer?.getCenter(),
  index:currentHourIndex,time:currentSeriesHours[currentHourIndex]?.timeUtc,url:currentFloodLayer?._url,
@@ -53,7 +53,7 @@ try{
     if(asset?.url&&!asset.url.startsWith('blob:')){await renderHour(index);return{index,url:asset.url,stage:getStageValue(entry)};}
    }return null;});
    assert.ok(row.target,'Use a real positive-water storm image');
-   await page.waitForFunction(()=>{const source=window.NORTH_WILDWOOD_3D.getMap().getSource('nw-flood-drape-source');return source?.loaded()&&source.image;},{},{timeout:30000});
+   await page.waitForFunction(()=>{const source=window.NORTH_WILDWOOD_3D.getMap().getSource(window.NORTH_WILDWOOD_3D.state().floodDrapeSourceId);return source?.loaded()&&source.image;},{},{timeout:30000});
    row.before=await snapshot(page);let failing=failNative;
    await page.route(row.target.url,route=>{const kind=route.request().resourceType();row.requests.push({kind,url:route.request().url()});return failing&&kind==='fetch'?route.abort('failed'):route.continue();});
    const extension=await page.evaluate(()=>{const gl=window.NORTH_WILDWOOD_3D.getMap().getCanvas().getContext('webgl2');window.__nwwRecoveryTestExtension=gl?.getExtension('WEBGL_lose_context');return!!window.__nwwRecoveryTestExtension;});

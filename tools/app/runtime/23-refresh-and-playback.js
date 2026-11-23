@@ -192,11 +192,13 @@
     let playbackGeneration = 0;
     let playbackSpeedMultiplier = 1;
     let reschedulePlaybackFrame = null;
+    let pendingPlaybackStep = null;
 
     function togglePlaybackSpeed(event) {
       playbackSpeedMultiplier = playbackSpeedMultiplier === 1 ? 2 : 1;
       const button = event.currentTarget;
       button.textContent = `${playbackSpeedMultiplier}×`;
+      button.setAttribute("aria-description", `Current playback speed: ${playbackSpeedMultiplier}×`);
       button.setAttribute("aria-pressed", String(playbackSpeedMultiplier === 2));
       reschedulePlaybackFrame?.();
     }
@@ -208,6 +210,16 @@
         clearTimeout(playTimer);
         clearInterval(playTimer);
         playTimer = null;
+      }
+      const step = pendingPlaybackStep;
+      pendingPlaybackStep = null;
+      if (step?.renderToken != null && step.renderToken === lastRenderToken) {
+        if (step.observedGeneration != null && step.observedGeneration === selectionGeneration) {
+          ++selectionGeneration;
+          loadObservedDay.pendingSelection = null;
+        }
+        cancelPendingFloodFrame();
+        step.restoreDisplay();
       }
       updatePlayPauseButton();
     }
@@ -246,13 +258,13 @@
       }
     }
 
-    async function stepSeriesBy(delta) {
+    async function stepSeriesBy(delta, playback = null) {
       if (!currentSeriesHours.length) return;
 
-      const navigationIndex = getTimelineNavigationIndex();
+      const navigationIndex = playback ? currentHourIndex : getTimelineNavigationIndex();
       const nextIndex = navigationIndex + delta;
       if (nextIndex >= 0 && nextIndex < currentSeriesHours.length) {
-        return renderHour(nextIndex);
+        return renderHour(nextIndex, { playback });
       }
 
       if (currentViewType === "observed-day" && selectedObservedDate) {
@@ -262,10 +274,7 @@
           : selectedObservedDate;
         const neighborDate = getNeighborObservedDate(displayedDate, delta > 0 ? 1 : -1);
         if (neighborDate) {
-          const playback = playTimer ? playbackGeneration : null;
-          const load = loadObservedDay(neighborDate, null, null, {
-            preservePlayback: playback !== null, dayStep: delta
-          });
+          const load = loadObservedDay(neighborDate, null, null, { playback, dayStep: delta });
           const generation = selectionGeneration;
           const loaded = await load;
           return loaded !== false && generation === selectionGeneration && currentViewType === "observed-day" &&
@@ -273,11 +282,7 @@
         }
       }
 
-      if (delta > 0) {
-        await renderHour(0);
-      } else {
-        await renderHour(Math.max(0, currentSeriesHours.length - 1));
-      }
+      return renderHour(delta > 0 ? 0 : currentSeriesHours.length - 1, { playback });
     }
 
     function getPlaybackCatchUpStep() {
@@ -311,7 +316,14 @@
       const generation = playbackGeneration;
       const previousDate = currentViewType === "observed-day"
         ? currentSeriesHours[currentHourIndex]?.observedDate || selectedObservedDate : null;
-      const advanced = await stepSeriesBy(catchUp ? getPlaybackCatchUpStep() : 1);
+      const step = playTimer ? {} : null;
+      if (step) pendingPlaybackStep = step;
+      let advanced;
+      try {
+        advanced = await stepSeriesBy(catchUp ? getPlaybackCatchUpStep() : 1, step);
+      } finally {
+        if (pendingPlaybackStep === step) pendingPlaybackStep = null;
+      }
       if (!playTimer || generation !== playbackGeneration) return;
       if (!currentSeriesHours.length) {
         stopPlayback();
