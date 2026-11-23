@@ -624,6 +624,12 @@
       if (!backdrop || !body) return;
       const parcel = kind === "parcel";
       const properties = feature.properties || {};
+      const certificate = TOWN_CONFIG.parcels?.verifiedElevationCertificates?.[properties.parcelId];
+      const verified = kind === "building" && Boolean(properties.parcelId && properties.nsi2026FootprintId) &&
+        certificate?.footprintId === properties.nsi2026FootprintId &&
+        typeof certificate.reference === "string" && Boolean(certificate.reference.trim());
+      const verificationNote = document.getElementById("floodHistoryVerified");
+      if (verificationNote) verificationNote.hidden = !verified;
       address.textContent = properties.address || `Selected ${TOWN_CONFIG.site.name} parcel`;
       document.getElementById("floodHistoryTitle").textContent = parcel ? "Parcel Flood Projections" : "Flood History & Projections";
       const help = document.getElementById("floodHistoryHelpText");
@@ -632,6 +638,7 @@
         : Number.isFinite(getNsiFirstOccupiedFloorNavd88(properties))
           ? "Past tides show how often water rose above the estimated floor. Future estimates show how that could change as sea level rises."
           : "Past tides and future estimates use parcel ground elevation.";
+      if (verified) help.textContent += " A signed elevation certificate is on file for this building. This screen uses modeled elevations.";
       body.innerHTML = '<div class="flood-history-loading" aria-hidden="true"></div>';
       backdrop.hidden = false;
       backdrop.setAttribute("aria-hidden", "false");

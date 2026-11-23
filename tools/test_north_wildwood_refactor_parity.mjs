@@ -12,6 +12,14 @@ import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const ELEVATION_VERIFICATION_PATH = "tools/fixtures/north-wildwood-20261123-elevation-verification.json";
+const priorElevationVerificationSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-elevation-verification-snapshot");
+const elevationVerificationText = fs.readFileSync(localPath(ELEVATION_VERIFICATION_PATH));
+assert.equal(hashReleaseBytes(elevationVerificationText), "4dee7702c757aca39959cb9008657af14e0ebea5630cedce4bf3947d2da595d9", "Retain the exact elevation verification inverse");
+const elevationVerification = JSON.parse(elevationVerificationText);
+assert.equal(elevationVerification.schemaVersion, 1);
+assert.equal(elevationVerification.baselineCommit, "0fa2d596eb82b8dfaddf9b23f68cd28d874ab1d1");
+const elevationVerificationFiles = new Map(elevationVerification.files.map(entry => [entry.source, entry]));
 const FRAME_LOADING_PATH = "tools/fixtures/north-wildwood-20261123-frame-loading.json";
 const priorFrameLoadingSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-frame-loading-snapshot");
 const frameLoadingText = fs.readFileSync(localPath(FRAME_LOADING_PATH));
@@ -127,8 +135,17 @@ function restoreReleaseBytes(bytes, entry, scope) {
   return restored;
 }
 
-function readBeforeFrameLoading(relative) {
+function readBeforeElevationVerification(relative) {
   const bytes = fs.readFileSync(localPath(relative));
+  const entry = elevationVerificationFiles.get(relative);
+  return priorElevationVerificationSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "elevation verification");
+}
+if (!priorElevationVerificationSnapshot) {
+  for (const file of elevationVerification.files) readBeforeElevationVerification(file.source);
+}
+
+function readBeforeFrameLoading(relative) {
+  const bytes = readBeforeElevationVerification(relative);
   const entry = frameLoadingFiles.get(relative);
   return priorFrameLoadingSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "frame loading");
 }
@@ -2898,6 +2915,7 @@ if (process.argv.includes("--self-test")) {
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
       DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
+      ELEVATION_VERIFICATION_PATH, ...elevationVerification.files.map(file => file.source),
       FRAME_LOADING_PATH, ...frameLoading.files.map(file => file.source),
       MAPPER_AUDIT_PATH, ...mapperAudit.files.map(file => file.source),
       PLAYBACK_SPEED_PATH, ...playbackSpeed.files.map(file => file.source),
@@ -2924,7 +2942,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforeFrameLoading = (args = []) => runRelease(["--prior-frame-loading-snapshot", ...args]);
+    const runBeforeElevationVerification = (args = []) => runRelease(["--prior-elevation-verification-snapshot", ...args]);
+    const runBeforeFrameLoading = (args = []) => runBeforeElevationVerification(["--prior-frame-loading-snapshot", ...args]);
     const runBeforeMapperAudit = (args = []) => runBeforeFrameLoading(["--prior-mapper-audit-snapshot", ...args]);
     const runBeforePlaybackSpeed = (args = []) => runBeforeMapperAudit(["--prior-playback-speed-snapshot", ...args]);
     const runBeforeKeyPolish = (args = []) => runBeforePlaybackSpeed(["--prior-key-polish-snapshot", ...args]);
@@ -2953,12 +2972,21 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered elevation verification inverse", path.join(scratch, ELEVATION_VERIFICATION_PATH), Buffer.concat([elevationVerificationText, Buffer.from(" ")])],
+      ...elevationVerification.files.map(file => {
+        const target = path.join(scratch, file.source);
+        return ["unreviewed elevation verification byte in " + file.source, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of elevationVerification.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeElevationVerification(file.source));
+    assert.equal(runBeforeElevationVerification().status, 0, "The restored application before elevation verification must pass");
+    assertMutationsRejected([
       ["altered frame loading inverse", path.join(scratch, FRAME_LOADING_PATH), Buffer.concat([frameLoadingText, Buffer.from(" ")])],
       ...frameLoading.files.map(file => {
         const target = path.join(scratch, file.source);
         return ["unreviewed frame loading byte in " + file.source, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
       })
-    ], runRelease);
+    ], runBeforeElevationVerification);
     for (const file of frameLoading.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeFrameLoading(file.source));
     assert.equal(runBeforeFrameLoading().status, 0, "The restored application before the frame loading fix must pass");
     assertMutationsRejected([

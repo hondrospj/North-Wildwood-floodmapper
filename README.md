@@ -368,6 +368,15 @@ surveys, elevation certificates, or regulatory products. The structure-impact
 dots, historical exceedance counts, and parcel projections continue to use the
 same modeled first-floor thresholds.
 
+The building history dialog displays `* Flood elevation verified` when the
+town profile includes a reviewed certificate for the selected building.
+In `tools/app/town-profile.json`, add entries under
+`config.parcels.verifiedElevationCertificates` keyed by `parcelId`. Each entry
+has a `footprintId` matching the parcel's `nsi2026FootprintId` and a
+`reference` identifying the official record. Verify the signed, as-built
+certificate against the current building and parcel before adding it. The
+modal still shows its modeled elevation and projections.
+
 The same city-primary series is fitted from equally weighted monthly means and
 rebased to January 1, 2026. The projection model includes that existing local
 trend plus NOAA's 2022 Low, Intermediate Low, Intermediate, Intermediate High,

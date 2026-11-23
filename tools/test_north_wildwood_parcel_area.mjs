@@ -119,6 +119,47 @@ assert.equal(await ctx.ensureFloodProjectionData(), cdf);
 assert.equal(await ctx.ensureFloodProjectionData(), cdf);
 assert.equal(cdfRequests, 2, 'A corrected CDF is cached only after validation');
 
+const historyElements = {
+  floodHistoryBackdrop: { hidden: true, setAttribute() {} },
+  floodHistoryBody: projectionBody,
+  floodHistoryAddress: {},
+  floodHistoryTitle: {},
+  floodHistoryHelpText: {},
+  floodHistoryVerified: { hidden: true },
+};
+Object.assign(ctx, {
+  document: {
+    getElementById: id => historyElements[id] ?? null,
+    body: { classList: { add() {} } },
+  },
+  floodHistoryRequest: 0,
+  formatSelectedObservedDate: value => value,
+});
+const building = { id: 518840, properties: {
+  parcelId: 'test-parcel', nsi2026FootprintId: 'test-building', nsi2026ModeledFirstFloorNavd88Ft: 8.5,
+} };
+const note = historyElements.floodHistoryVerified;
+await ctx.openFloodHistoryPane(building);
+assert.equal(note.hidden, true);
+const modeledProjection = projectionBody.innerHTML;
+const records = ctx.TOWN_CONFIG.parcels.verifiedElevationCertificates = {
+  'test-parcel': { footprintId: 'test-building', reference: 'test-record' },
+};
+await ctx.openFloodHistoryPane(building);
+assert.equal(note.hidden, false);
+assert.match(historyElements.floodHistoryHelpText.textContent, /signed elevation certificate is on file.*modeled elevations/);
+assert.equal(projectionBody.innerHTML, modeledProjection, 'Certificate presence does not change the modeled results');
+await ctx.openFloodHistoryPane({ properties: { ...building.properties, nsi2026FootprintId: 'another-building' } });
+assert.equal(note.hidden, true, 'Do not transfer a certificate to another footprint on the parcel');
+assert.doesNotMatch(historyElements.floodHistoryHelpText.textContent, /certificate/);
+await ctx.openFloodHistoryPane({ properties: { ...building.properties, parcelId: 'another-parcel' } });
+assert.equal(note.hidden, true, 'Do not transfer a certificate to another parcel');
+await ctx.openFloodHistoryPane(building, 'parcel');
+assert.equal(note.hidden, true, 'The building record does not apply to parcel-area projections');
+records['test-parcel'].reference = ' ';
+await ctx.openFloodHistoryPane(building);
+assert.equal(note.hidden, true, 'A verified record requires a reference');
+
 const selectedEntry = { stage: 3.16 };
 const selectedSeries = [selectedEntry];
 const popup = {};

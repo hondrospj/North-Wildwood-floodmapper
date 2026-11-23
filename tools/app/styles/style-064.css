@@ -292,6 +292,11 @@
 
   .flood-history-head-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}
   .flood-history-head-actions .property-help{position:relative}
+  .flood-history-verified{order:-1;color:#b9cce5;font-size:11px;font-weight:600;line-height:1.2}
+  @media (max-width:520px){
+    .flood-history-head-actions{display:grid;grid-template-columns:auto auto;gap:4px 7px;justify-items:end}
+    .flood-history-verified{order:0;grid-column:1/-1;max-width:84px;text-align:right}
+  }
   .property-help summary{
     display:grid;place-items:center;width:34px;height:34px;border-radius:10px;
     background:rgba(255,255,255,.06);border:1px solid rgba(191,219,254,.28);

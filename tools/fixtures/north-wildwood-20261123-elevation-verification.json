@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "0fa2d596eb82b8dfaddf9b23f68cd28d874ab1d1",
+  "scope": "Show a certificate verification note only for an exact building and parcel record.",
+  "files": [
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "f818d14e11d56b982f61651fe69fa6675e5cfa0ae9ba1865f7bd223b0b954500",
+      "afterSha256": "3a81b00cb7d5adc5a0145edfef5895611b103549706f8623182061c3eb007d53",
+      "edits": [
+        [
+          579380,
+          579899,
+          ""
+        ],
+        [
+          580691,
+          580833,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "assets/styles/app-05.css",
+      "beforeSha256": "244aa39c8a42ca08fd7b10b9a8f283cc510c9687b94e0c5d608ca4e5281f145b",
+      "afterSha256": "180928629c1594cf82be9f343d84f39556e46c9eb02a94fb4d9906eb54374c71",
+      "edits": [
+        [
+          313278,
+          313601,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "f0ece8bebc0ad34348e2902363d30412aede095493d9b62039f784d59d8d3534",
+      "afterSha256": "6ee62efab153589183761add673f38b6dd2537ed6f0f3f7d68f01bd871b5b80c",
+      "edits": [
+        [
+          36483,
+          36568,
+          "<link rel=\"preload\" as=\"style\" href=\"./assets/styles/app-05.css?v=244aa39c8a42ca08\">\n"
+        ],
+        [
+          67090,
+          67221,
+          "<link data-nww-startup-style rel=\"stylesheet\" data-nww-style-bundle=\"app-05\" href=\"./assets/styles/app-05.css?v=244aa39c8a42ca08\">\n"
+        ],
+        [
+          106123,
+          106239,
+          ""
+        ],
+        [
+          109944,
+          110042,
+          "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=f818d14e11d56b98\"></script>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "23d110686eb96c541268f508de5551107f56ea34325bba84ed6118253f8c63fd",
+      "afterSha256": "8da9667303d4c6fd83312518d0073ca9d026ddbf72c02c6f31a0a552e16f5208",
+      "edits": [
+        [
+          47684,
+          47800,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/24-alerts-and-projections.js",
+      "beforeSha256": "58e49674e142db1323fd5d1ed64f9b3fe6d4e9cf03267fbc6ae1df0c60b8a6e4",
+      "afterSha256": "c43d15cc9aa86d8967032bb6b1a26bc5f1cc93aacadfc5f3be8fbb847fb301e7",
+      "edits": [
+        [
+          34537,
+          35056,
+          ""
+        ],
+        [
+          35848,
+          35990,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/styles/style-064.css",
+      "beforeSha256": "739602003db07c5cda52104b9aaa61d73bcc54b041165d62e8daea3b2df7ca4b",
+      "afterSha256": "0e59ffd1cf16e4caed60b2cd941898072db698b02f6a4830c30a946a14e66a8d",
+      "edits": [
+        [
+          11553,
+          11876,
+          ""
+        ]
+      ]
+    }
+  ]
+}
