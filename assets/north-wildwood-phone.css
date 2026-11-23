@@ -41,7 +41,7 @@
   }
 
   html[data-nww-phone] body #timelineDock[data-nww-centered-slider] {
-    --nww-desktop-pill-width: 256px;
+    --nww-desktop-pill-width: 320px;
     --nww-desktop-thumb-size: 26px;
     --nww-desktop-slider-edge: calc(var(--nww-desktop-pill-width) / 2 + 8px);
   }
@@ -64,15 +64,6 @@
 
   html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineBubble[data-nww-thumb-follow] {
     width: var(--nww-desktop-pill-width) !important;
-    padding-inline: 10px !important;
-  }
-
-  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineBubble .timeline-bubble-current {
-    font-size: 18px !important;
-  }
-
-  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineBubble .timeline-bubble-stage {
-    font-size: 16px !important;
   }
 
   html[data-nww-phone] body:has(#timelineDock[data-nww-centered-slider]):not(:has(#downloadModal.open)) #toast {
@@ -91,6 +82,15 @@
       min-height: 30px !important;
       padding-block: 0 !important;
       box-shadow: none !important;
+    }
+    html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineBubble[data-nww-thumb-follow] {
+      padding-inline: 10px !important;
+    }
+    html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineBubble .timeline-bubble-current {
+      font-size: 18px !important;
+    }
+    html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineBubble .timeline-bubble-stage {
+      font-size: 16px !important;
     }
     html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineDayTabs {
       top: 40px !important;

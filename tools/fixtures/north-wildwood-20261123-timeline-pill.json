@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "6ce9e5cf9a5877086871a8f513d3a26941a13376",
+  "scope": "Restore the desktop timeline pill dimensions and typography while retaining centered tracking and compact layouts.",
+  "files": [
+    {
+      "source": "assets/north-wildwood-phone.css",
+      "beforeSha256": "fc175087154c1f80d6ddb51c1869563eb9c50d631151e445dce8f47125155c3a",
+      "afterSha256": "967b44ab95059bb08e636054f5254965c8641b1f1dd67ab5ffc585daa89da02f",
+      "edits": [
+        [
+          1540,
+          1577,
+          "    --nww-desktop-pill-width: 256px;\n"
+        ],
+        [
+          2547,
+          2547,
+          "    padding-inline: 10px !important;\n  }\n\n  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineBubble .timeline-bubble-current {\n    font-size: 18px !important;\n  }\n\n  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineBubble .timeline-bubble-stage {\n    font-size: 16px !important;\n"
+        ],
+        [
+          3249,
+          3709,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "d7a947f6994fa30b22fbf33c10f33b1aa57ee4a68804e9477c18a25013a45715",
+      "afterSha256": "a6f29510efe5c3cc291fa7f6d8a64c6b213f6b5ac85f57dae901019753951aaf",
+      "edits": [
+        [
+          33808,
+          33824,
+          "fc175087154c1f80"
+        ],
+        [
+          65061,
+          65077,
+          "fc175087154c1f80"
+        ]
+      ]
+    }
+  ]
+}

@@ -12,6 +12,14 @@ import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const TIMELINE_PILL_PATH = "tools/fixtures/north-wildwood-20261123-timeline-pill.json";
+const priorTimelinePillSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-timeline-pill-snapshot");
+const timelinePillText = fs.readFileSync(localPath(TIMELINE_PILL_PATH));
+assert.equal(hashReleaseBytes(timelinePillText), "d20962c390911233562656a0f0fddca3aaff880eb04de35f28710c6509f28c26", "Retain the exact timeline pill inverse");
+const timelinePill = JSON.parse(timelinePillText);
+assert.equal(timelinePill.schemaVersion, 1);
+assert.equal(timelinePill.baselineCommit, "6ce9e5cf9a5877086871a8f513d3a26941a13376");
+const timelinePillFiles = new Map(timelinePill.files.map(entry => [entry.source, entry]));
 const LOADER_DISPLAY_PATH = "tools/fixtures/north-wildwood-20261123-loader-display.json";
 const priorLoaderDisplaySnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-loader-display-snapshot");
 const loaderDisplayText = fs.readFileSync(localPath(LOADER_DISPLAY_PATH));
@@ -55,8 +63,17 @@ function restoreReleaseBytes(bytes, entry, scope) {
   return restored;
 }
 
-function readBeforeLoaderDisplay(relative) {
+function readBeforeTimelinePill(relative) {
   const bytes = fs.readFileSync(localPath(relative));
+  const entry = timelinePillFiles.get(relative);
+  return priorTimelinePillSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "timeline pill");
+}
+if (!priorTimelinePillSnapshot) {
+  for (const file of timelinePill.files) readBeforeTimelinePill(file.source);
+}
+
+function readBeforeLoaderDisplay(relative) {
+  const bytes = readBeforeTimelinePill(relative);
   const entry = loaderDisplayFiles.get(relative);
   return priorLoaderDisplaySnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "loader display");
 }
@@ -2745,6 +2762,7 @@ if (process.argv.includes("--self-test")) {
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
       DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
+      TIMELINE_PILL_PATH, ...timelinePill.files.map(file => file.source),
       LOADER_DISPLAY_PATH, ...loaderDisplay.files.map(file => file.source),
       RUNTIME_AUDIT_PATH, ...runtimeAudit.files.map(file => file.source),
       QUIET_LOADING_PATH, ...quietLoading.files.map(file => file.source),
@@ -2762,7 +2780,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforeLoaderDisplay = (args = []) => runRelease(["--prior-loader-display-snapshot", ...args]);
+    const runBeforeTimelinePill = (args = []) => runRelease(["--prior-timeline-pill-snapshot", ...args]);
+    const runBeforeLoaderDisplay = (args = []) => runBeforeTimelinePill(["--prior-loader-display-snapshot", ...args]);
     const runBeforeRuntimeAudit = (args = []) => runBeforeLoaderDisplay(["--prior-runtime-audit-snapshot", ...args]);
     const runBeforeDataDelivery = (args = []) => runBeforeRuntimeAudit(["--prior-data-delivery-snapshot", ...args]);
     const runBeforeFirstMapPaint = (args = []) => runBeforeDataDelivery(["--prior-first-map-paint-snapshot", ...args]);
@@ -2782,12 +2801,21 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered timeline pill inverse", path.join(scratch, TIMELINE_PILL_PATH), Buffer.concat([timelinePillText, Buffer.from(" ")])],
+      ...timelinePill.files.map(file => {
+        const target = path.join(scratch, file.source);
+        return [`unreviewed timeline pill byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of timelinePill.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeTimelinePill(file.source));
+    assert.equal(runBeforeTimelinePill().status, 0, "The restored application before the timeline pill change must pass");
+    assertMutationsRejected([
       ["altered loader display inverse", path.join(scratch, LOADER_DISPLAY_PATH), Buffer.concat([loaderDisplayText, Buffer.from(" ")])],
       ...loaderDisplay.files.map(file => {
         const target = path.join(scratch, file.source);
         return [`unreviewed loader display byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
       })
-    ], runRelease);
+    ], runBeforeTimelinePill);
     for (const file of loaderDisplay.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeLoaderDisplay(file.source));
     assert.equal(runBeforeLoaderDisplay().status, 0, "The restored application before the loader display fix must pass");
     assertMutationsRejected([
