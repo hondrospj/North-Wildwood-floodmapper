@@ -25,13 +25,7 @@
 
     function getDrainageRasterImage(url) {
       if (!url) return Promise.resolve(null);
-      if (drainageRasterImageCache.has(url)) {
-        const cached = drainageRasterImageCache.get(url);
-        transferableFloodProbeImages.delete(cached);
-        drainageRasterImageCache.delete(url);
-        drainageRasterImageCache.set(url, cached);
-        return awaitRasterRequest(Promise.resolve(cached));
-      }
+      if (drainageRasterImageCache.has(url)) return awaitRasterRequest(drainageRasterImageCache.get(url));
       const releaseRaster = retainRasterObjectUrl(url);
       const promise = new Promise(resolve => {
         const image = new Image();

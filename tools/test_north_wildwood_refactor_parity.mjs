@@ -15,7 +15,7 @@ const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex
 const FRAME_LOADING_PATH = "tools/fixtures/north-wildwood-20261123-frame-loading.json";
 const priorFrameLoadingSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-frame-loading-snapshot");
 const frameLoadingText = fs.readFileSync(localPath(FRAME_LOADING_PATH));
-assert.equal(hashReleaseBytes(frameLoadingText), "c23231c8bb6264082eea48ca6873155330c07f216bc61fd5f365e10adac2c6f1", "Retain the exact frame loading inverse");
+assert.equal(hashReleaseBytes(frameLoadingText), "e61927174a2d53854dc176e23576ed4ffeb000a3b723664bcf3ddc0994d87107", "Retain the exact frame loading inverse");
 const frameLoading = JSON.parse(frameLoadingText);
 assert.equal(frameLoading.schemaVersion, 1);
 assert.equal(frameLoading.baselineCommit, "a1e0fc8bf9d26dbc9ccc396b8a547922da2eee88");

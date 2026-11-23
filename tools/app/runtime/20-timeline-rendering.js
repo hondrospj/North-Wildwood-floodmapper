@@ -179,11 +179,6 @@
         if (token !== lastRenderToken) return;
 
         const previousLayer = currentFloodLayer;
-        if (pendingFloodLayer && map.hasLayer(pendingFloodLayer)) {
-          if (pendingFloodLayer !== previousLayer) map.removeLayer(pendingFloodLayer);
-          pendingFloodLayer = null;
-        }
-
         const className = currentDataMode === "return-interval" && mode === "depth"
           ? "return-interval-depth-overlay"
           : "";
@@ -200,11 +195,15 @@
           if (startupOverlayCandidate?.url === overlayUrl) initialImage = startupOverlayCandidate.image;
           startupOverlayCandidate = null;
         }
-        // Decode off the map, then mount that exact image for a single swap.
-        const decodedImage = reuseMountedLayer ? mountedImage : await loadDecodedFloodImage(
-          overlayUrl, "high", initialImage || takeVerifiedFloodImage(overlayUrl)
-        );
-        if (token !== lastRenderToken || !decodedImage) return false;
+        if (!reuseMountedLayer && !initialImage) {
+          const loaded = await preloadImage(overlayUrl, "high");
+          if (token !== lastRenderToken || !loaded) return false;
+        }
+        if (pendingFloodLayer && map.hasLayer(pendingFloodLayer)) {
+          if (pendingFloodLayer !== previousLayer) map.removeLayer(pendingFloodLayer);
+          pendingFloodLayer = null;
+        }
+
         const nextLayer = reuseMountedLayer ? previousLayer : createHydraulicImageOverlay(
           overlayUrl,
           {
@@ -215,7 +214,7 @@
             pane: "floodPane",
             className
           },
-          decodedImage
+          initialImage || overlayUrl
         );
 
         pendingFloodLayer = nextLayer;
@@ -237,15 +236,6 @@
   
           if (previousLayer && previousLayer !== nextLayer && map.hasLayer(previousLayer)) {
             map.removeLayer(previousLayer);
-            if (previousLayer._floodmapperImageGeneration === imageGeneration &&
-                mountedImage?.complete && mountedImage.naturalWidth > 0 &&
-                mountedImage.src === previousLayer._url && !mountedImage.isConnected) {
-              // The shared small raster cache can supply this decoded image on a later seek.
-              // Strip Leaflet's display style before lending the detached element again.
-              mountedImage.removeAttribute?.("class");
-              mountedImage.removeAttribute?.("style");
-              cacheVerifiedFloodImage(previousLayer._url, mountedImage, imageGeneration);
-            }
           }
   
           updatePersistentDepthQueryPopup();
@@ -254,7 +244,7 @@
           markInitialFloodFrameReady();
           return true;
         };
-        if (!reuseMountedLayer) return await waitForRecoveryFloodLayer(nextLayer, token, commit, decodedImage);
+        if (!reuseMountedLayer) return await waitForRecoveryFloodLayer(nextLayer, token, commit);
         try {
           return await commit();
         } finally {
@@ -279,8 +269,9 @@
       if (!overlayUrl || !Array.isArray(bounds) || bounds.length !== 2) {
         throw new Error("The selected physics frame is incomplete.");
       }
-      const decodedImage = await loadDecodedFloodImage(overlayUrl, "high");
-      if (token !== lastRenderToken || !decodedImage) return false;
+      const loaded = await preloadImage(overlayUrl, "high");
+      if (token !== lastRenderToken) return;
+      if (!loaded) return false;
       floodLatLngBounds = L.latLngBounds(bounds[0], bounds[1]);
       floodOverlayGeometryMode = "axis-aligned";
 
@@ -289,7 +280,7 @@
         if (pendingFloodLayer !== previousLayer) map.removeLayer(pendingFloodLayer);
         pendingFloodLayer = null;
       }
-      const nextLayer = L.imageOverlay(decodedImage, floodLatLngBounds, {
+      const nextLayer = L.imageOverlay(overlayUrl, floodLatLngBounds, {
         opacity: 0,
         interactive: false,
         crossOrigin: true,
@@ -313,7 +304,7 @@
         if (previousLayer && map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
         if (!mapHasFit) fitInitialFloodView(getBoundaryDrivenOverlayBounds() || floodLatLngBounds);
         markInitialFloodFrameReady();
-      }, decodedImage);
+      });
     }
 
     function ownPlaybackFrame(playback, token) {

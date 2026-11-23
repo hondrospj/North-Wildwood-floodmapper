@@ -396,7 +396,7 @@ if(/getOverlayRecord\(/.test(prefetch))assert.match(prefetch,/distance <= 12/);
 assert.doesNotMatch(extractFunction("setTimelineIntervalMinutes"), /clearFloodLayer\(\)/);
 assert.match(extractFunction("testImageUrl"), /const cache = imageExistsCache;[\s\S]+cache\.set\(url, request\)[\s\S]+await request/);
 assert.match(extractFunction("getOverlayRecord"), /overlayRecordCache\.set\(key, request\)[\s\S]+await request/);
-assert.match(extractFunction("setFloodLayer"), /await loadDecodedFloodImage\([\s\S]+const commit = async \(\) => \{[\s\S]+markInitialFloodFrameReady\(\)[\s\S]+await waitForRecoveryFloodLayer\(nextLayer, token, commit, decodedImage\)/);
+assert.match(extractFunction("setFloodLayer"), /const commit = async \(\) => \{[\s\S]+markInitialFloodFrameReady\(\)[\s\S]+await waitForRecoveryFloodLayer\(nextLayer, token, commit\)/);
 assert.match(extractFunction("setPhysicsFloodLayer"), /(?:await new Promise|await waitForRecoveryFloodLayer)[\s\S]+markInitialFloodFrameReady\(\)/);
 assert.match(
   extractFunction("reloadAll"),

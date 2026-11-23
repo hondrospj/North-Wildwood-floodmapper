@@ -16,7 +16,6 @@ function context(names, stubs = {}) {
     MINOR_VERTICAL_PENALTY_FT:0.75, MODERATE_VERTICAL_PENALTY_FT:0.25, MAJOR_VERTICAL_PENALTY_FT:0,
     // Object-URL ownership and cache eviction have a separate raster lifetime suite.
     retainRasterObjectUrl:()=>()=>{}, scheduleRasterObjectUrlCleanup(){}, RASTER_IMAGE_CACHE_LIMIT:4,
-    cacheVerifiedFloodImage(){},
     TOWN_CONFIG:{overlays:{}},lastRenderToken:0,pendingFloodLayer:null,currentFloodLayer:null,map:null,
     persistentDepthQueryContext:null,updatePersistentDepthQueryPopup(){},
     requestedTimelineSelection:null,cancelTimelineSelection(){},
@@ -58,7 +57,7 @@ for (const name of ["testImageUrl","preloadImage","getExportImageElement"]) {
       this.complete=true; this.naturalWidth=64; this.onload?.();
     }); }
   }
-  const images=context(name==="preloadImage"?["decodeFloodFrameImage","loadDecodedFloodImage",name]:[name],{Image:FakeImage,window:{setTimeout,clearTimeout,setInterval,clearInterval},
+  const images=context(name==="preloadImage"?["decodeFloodFrameImage",name]:[name],{Image:FakeImage,window:{setTimeout,clearTimeout,setInterval,clearInterval},
     imageExistsCache:new Map(),preloadPromiseCache:new Map(),exportImageElementCache:new Map(),
     document:{body:{dataset:{initialFloodFrame:"ready"}}},startupOverlayCandidate:null,
     exportCancelRequested:false,exportInProgress:false});
@@ -80,7 +79,7 @@ for (const loader of ["testImageUrl", "preloadImage", "getExportImageElement"]) 
     removeAttribute(name) { assert.equal(name, "src"); this.url = null; }
     async decode() {}
   }
-  const images = context(["decodeFloodFrameImage", "loadDecodedFloodImage", loader], {
+  const images = context(["decodeFloodFrameImage", loader], {
     Image: HeldImage,
     window: {
       setTimeout(fn) { deadlines.push(fn); return deadlines.length; },

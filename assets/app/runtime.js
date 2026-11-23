@@ -3249,27 +3249,6 @@ function setDatumHelpOpen(isOpen) {
     }
 
     let startupOverlayCandidate = null;
-    const transferableFloodProbeImages = new WeakMap();
-
-    function cacheVerifiedFloodImage(url, image, probeGeneration) {
-      if (drainageRasterImageCache.has(url)) return;
-      transferableFloodProbeImages.set(image, probeGeneration);
-      drainageRasterImageCache.set(url, image);
-      while (drainageRasterImageCache.size > DRAINAGE_RASTER_IMAGE_CACHE_LIMIT) {
-        drainageRasterImageCache.delete(drainageRasterImageCache.keys().next().value);
-      }
-    }
-
-    function takeVerifiedFloodImage(url) {
-      const image = drainageRasterImageCache.get(url);
-      if (!image?.complete || !image.naturalWidth || image.isConnected ||
-          transferableFloodProbeImages.get(image) !== imageExistsCache) return null;
-      // Once mounted, Leaflet owns this element and may change its source on
-      // disposal. A canvas consumer must use a different image.
-      transferableFloodProbeImages.delete(image);
-      drainageRasterImageCache.delete(url);
-      return image;
-    }
 
     async function testImageUrl(url) {
       if (!url) return { ok: false };
@@ -3299,16 +3278,12 @@ function setDatumHelpOpen(isOpen) {
         if (cancelIfRequested()) return;
         if (exportInProgress) cancelTimer = window.setInterval(cancelIfRequested, 80);
         img.crossOrigin = "anonymous";
-        img.decoding = "async";
         img.fetchPriority = "high";
         img.onload = () => {
-          if (!settled && imageExistsCache === cache && !exportInProgress) {
+          if (!settled && imageExistsCache === cache && !exportInProgress &&
+              document.body.dataset.initialFloodFrame === "loading") {
             img.alt = "";
-            if (document.body.dataset.initialFloodFrame === "loading") {
-              startupOverlayCandidate = { url, image: img };
-            } else {
-              cacheVerifiedFloodImage(url, img, cache);
-            }
+            startupOverlayCandidate = { url, image: img };
           }
           done({ ok: true });
         };
@@ -3325,11 +3300,13 @@ function setDatumHelpOpen(isOpen) {
       return result;
     }
 
-    function loadDecodedFloodImage(url, priority, loadedImage = null) {
+    function preloadImage(url, priority = "low") {
       if (!url) return Promise.resolve(null);
+      if (preloadPromiseCache.has(url)) return preloadPromiseCache.get(url);
+
       const releaseRaster = retainRasterObjectUrl(url);
-      return new Promise(resolve => {
-        const img = loadedImage || new Image();
+      const promise = new Promise(resolve => {
+        const img = new Image();
         let settled = false;
         let cancelTimer = null;
         let timeoutTimer = null;
@@ -3339,8 +3316,9 @@ function setDatumHelpOpen(isOpen) {
           releaseRaster();
           if (cancelTimer) window.clearInterval(cancelTimer);
           if (timeoutTimer) window.clearTimeout(timeoutTimer);
-          if (!loadedImage) img.onload = img.onerror = null;
-          if (!value && !img.isConnected) img.removeAttribute?.("src");
+          img.onload = null;
+          img.onerror = null;
+          if (!value) img.removeAttribute?.("src");
           resolve(value);
         };
         const cancelIfRequested = () => {
@@ -3350,26 +3328,15 @@ function setDatumHelpOpen(isOpen) {
         };
         if (cancelIfRequested()) return;
         if (exportInProgress) cancelTimer = window.setInterval(cancelIfRequested, 80);
-        const decode = async () => done(await decodeFloodFrameImage(img) ? img : null);
+        img.crossOrigin = "anonymous";
+        img.decoding = "async";
+        img.fetchPriority = priority === "high" ? "high" : "low";
+        img.onload = async () => done(await decodeFloodFrameImage(img) ? url : null);
+        img.onerror = () => done(null);
         timeoutTimer = window.setTimeout(() => done(null), 20000);
-        if (loadedImage) {
-          if (img.src === url && !img.isConnected) void decode();
-          else done(null);
-        } else {
-          img.crossOrigin = "anonymous";
-          img.decoding = "async";
-          img.fetchPriority = priority === "high" ? "high" : "low";
-          img.onload = decode;
-          img.onerror = () => done(null);
-          img.src = url;
-        }
+        img.src = url;
       });
-    }
 
-    function preloadImage(url, priority = "low") {
-      if (!url) return Promise.resolve(null);
-      if (preloadPromiseCache.has(url)) return preloadPromiseCache.get(url);
-      const promise = loadDecodedFloodImage(url, priority).then(image => image ? url : null);
       preloadPromiseCache.set(url, promise);
       promise.then(result => {
         if (!result && preloadPromiseCache.get(url) === promise) preloadPromiseCache.delete(url);
@@ -3716,13 +3683,7 @@ function setDatumHelpOpen(isOpen) {
 
     function getDrainageRasterImage(url) {
       if (!url) return Promise.resolve(null);
-      if (drainageRasterImageCache.has(url)) {
-        const cached = drainageRasterImageCache.get(url);
-        transferableFloodProbeImages.delete(cached);
-        drainageRasterImageCache.delete(url);
-        drainageRasterImageCache.set(url, cached);
-        return awaitRasterRequest(Promise.resolve(cached));
-      }
+      if (drainageRasterImageCache.has(url)) return awaitRasterRequest(drainageRasterImageCache.get(url));
       const releaseRaster = retainRasterObjectUrl(url);
       const promise = new Promise(resolve => {
         const image = new Image();
@@ -8520,7 +8481,7 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
       if (typeof stopPlayback === "function") stopPlayback();
     }
 
-    function waitForRecoveryFloodLayer(layer, token, onReady, decodedImage = null) {
+    function waitForRecoveryFloodLayer(layer, token, onReady) {
       return new Promise(resolve => {
         let settled = false;
         let handlingLoad = false;
@@ -8548,8 +8509,8 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
           if (handlingLoad) return;
           handlingLoad = true;
           if (settled || token !== lastRenderToken) return finish(false);
-          const image = layer.getElement();
-          if ((!decodedImage || image !== decodedImage) && !await decodeFloodFrameImage(image)) return finish(false);
+          if (!await decodeFloodFrameImage(layer.getElement())) return finish(false);
+          await new Promise(requestAnimationFrame);
           if (settled || token !== lastRenderToken || !map.hasLayer(layer)) return finish(false);
           try {
             const ready = await onReady();
@@ -9927,11 +9888,6 @@ function formatSelectedObservedDate(dateStr) {
         if (token !== lastRenderToken) return;
 
         const previousLayer = currentFloodLayer;
-        if (pendingFloodLayer && map.hasLayer(pendingFloodLayer)) {
-          if (pendingFloodLayer !== previousLayer) map.removeLayer(pendingFloodLayer);
-          pendingFloodLayer = null;
-        }
-
         const className = currentDataMode === "return-interval" && mode === "depth"
           ? "return-interval-depth-overlay"
           : "";
@@ -9948,11 +9904,15 @@ function formatSelectedObservedDate(dateStr) {
           if (startupOverlayCandidate?.url === overlayUrl) initialImage = startupOverlayCandidate.image;
           startupOverlayCandidate = null;
         }
-        // Decode off the map, then mount that exact image for a single swap.
-        const decodedImage = reuseMountedLayer ? mountedImage : await loadDecodedFloodImage(
-          overlayUrl, "high", initialImage || takeVerifiedFloodImage(overlayUrl)
-        );
-        if (token !== lastRenderToken || !decodedImage) return false;
+        if (!reuseMountedLayer && !initialImage) {
+          const loaded = await preloadImage(overlayUrl, "high");
+          if (token !== lastRenderToken || !loaded) return false;
+        }
+        if (pendingFloodLayer && map.hasLayer(pendingFloodLayer)) {
+          if (pendingFloodLayer !== previousLayer) map.removeLayer(pendingFloodLayer);
+          pendingFloodLayer = null;
+        }
+
         const nextLayer = reuseMountedLayer ? previousLayer : createHydraulicImageOverlay(
           overlayUrl,
           {
@@ -9963,7 +9923,7 @@ function formatSelectedObservedDate(dateStr) {
             pane: "floodPane",
             className
           },
-          decodedImage
+          initialImage || overlayUrl
         );
 
         pendingFloodLayer = nextLayer;
@@ -9985,15 +9945,6 @@ function formatSelectedObservedDate(dateStr) {
   
           if (previousLayer && previousLayer !== nextLayer && map.hasLayer(previousLayer)) {
             map.removeLayer(previousLayer);
-            if (previousLayer._floodmapperImageGeneration === imageGeneration &&
-                mountedImage?.complete && mountedImage.naturalWidth > 0 &&
-                mountedImage.src === previousLayer._url && !mountedImage.isConnected) {
-              // The shared small raster cache can supply this decoded image on a later seek.
-              // Strip Leaflet's display style before lending the detached element again.
-              mountedImage.removeAttribute?.("class");
-              mountedImage.removeAttribute?.("style");
-              cacheVerifiedFloodImage(previousLayer._url, mountedImage, imageGeneration);
-            }
           }
   
           updatePersistentDepthQueryPopup();
@@ -10002,7 +9953,7 @@ function formatSelectedObservedDate(dateStr) {
           markInitialFloodFrameReady();
           return true;
         };
-        if (!reuseMountedLayer) return await waitForRecoveryFloodLayer(nextLayer, token, commit, decodedImage);
+        if (!reuseMountedLayer) return await waitForRecoveryFloodLayer(nextLayer, token, commit);
         try {
           return await commit();
         } finally {
@@ -10027,8 +9978,9 @@ function formatSelectedObservedDate(dateStr) {
       if (!overlayUrl || !Array.isArray(bounds) || bounds.length !== 2) {
         throw new Error("The selected physics frame is incomplete.");
       }
-      const decodedImage = await loadDecodedFloodImage(overlayUrl, "high");
-      if (token !== lastRenderToken || !decodedImage) return false;
+      const loaded = await preloadImage(overlayUrl, "high");
+      if (token !== lastRenderToken) return;
+      if (!loaded) return false;
       floodLatLngBounds = L.latLngBounds(bounds[0], bounds[1]);
       floodOverlayGeometryMode = "axis-aligned";
 
@@ -10037,7 +9989,7 @@ function formatSelectedObservedDate(dateStr) {
         if (pendingFloodLayer !== previousLayer) map.removeLayer(pendingFloodLayer);
         pendingFloodLayer = null;
       }
-      const nextLayer = L.imageOverlay(decodedImage, floodLatLngBounds, {
+      const nextLayer = L.imageOverlay(overlayUrl, floodLatLngBounds, {
         opacity: 0,
         interactive: false,
         crossOrigin: true,
@@ -10061,7 +10013,7 @@ function formatSelectedObservedDate(dateStr) {
         if (previousLayer && map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
         if (!mapHasFit) fitInitialFloodView(getBoundaryDrivenOverlayBounds() || floodLatLngBounds);
         markInitialFloodFrameReady();
-      }, decodedImage);
+      });
     }
 
     function ownPlaybackFrame(playback, token) {

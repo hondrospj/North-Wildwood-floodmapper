@@ -324,9 +324,8 @@ for(const outcome of ['ready','failure','superseded']) {
   const c=vm.createContext({window:{...clock,NORTH_WILDWOOD_3D:{prepareFloodFrame:async()=>{started.resolve();return gate.promise;}}},requestAnimationFrame:fn=>queueMicrotask(fn),console,
     document:{body:{dataset:{initialFloodFrame:'ready'},classList:{contains:()=>false}}},
     currentSeriesHours:[{stage:1}],currentRawSeriesHours:[],currentHourIndex:0,currentDataMode:'forecast',forecastData:null,lastRenderToken:1,currentFloodLayer:previous,pendingFloodLayer:null,
-    getStageValue:entry=>entry.stage,imageExistsCache:new Map(),retainRasterObjectUrl:()=>()=>{},toast(){},ensureMap(){},getHydraulicOverlayRecord:async()=>({url:'new'}),takeVerifiedFloodImage:()=>null,ensureOverlayBounds:async()=>{},
-    loadDecodedFloodImage:async()=>({complete:true,naturalWidth:4,decode:async()=>{}}),
-    createHydraulicImageOverlay:(url,options,image)=>Object.assign(new Layer(url),{image}),overlayOpacity:.75,mapHasFit:true,floodLatLngBounds:{},updatePersistentDepthQueryPopup(){},markInitialFloodFrameReady(){},preloadPromiseCache:new Map(),
+    getStageValue:entry=>entry.stage,imageExistsCache:new Map(),retainRasterObjectUrl:()=>()=>{},toast(){},ensureMap(){},getHydraulicOverlayRecord:async()=>({url:'new'}),preloadImage:async url=>url,ensureOverlayBounds:async()=>{},
+    createHydraulicImageOverlay:url=>new Layer(url),overlayOpacity:.75,mapHasFit:true,floodLatLngBounds:{},updatePersistentDepthQueryPopup(){},markInitialFloodFrameReady(){},preloadPromiseCache:new Map(),
     map:{hasLayer:layer=>active.has(layer),removeLayer(layer){active.delete(layer);layer.handlers.get('remove')?.();}}});
   for(const n of ['decodeFloodFrameImage','waitForRecoveryFloodLayer','setFloodLayer'])vm.runInContext(extract(n),c);
   const job=c.setFloodLayer('depth',1,'slack',1,{stage:1});await started.promise;
