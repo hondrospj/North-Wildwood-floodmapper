@@ -484,6 +484,7 @@
       }
       const stopBtn = document.getElementById("stopBtn");
       if (stopBtn) stopBtn.addEventListener("click", stopPlayback);
+      document.getElementById("timelineSpeedBtn")?.addEventListener("click", togglePlaybackSpeed);
 
       const reloadBtn = document.getElementById("reloadBtn");
       if (reloadBtn) {

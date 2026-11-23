@@ -9,6 +9,7 @@
  const utilities=document.getElementById('nwwMobileUtilities');
  const legend=document.getElementById('legendDock'),legendToggle=document.getElementById('nwwMobileLegendToggle');
  const bubble=document.getElementById('timelineBubble'),slider=document.getElementById('hourSlider');
+ const timelineKey=document.getElementById('timelineFloodKey');
  const mobile=matchMedia('(max-width:900px), (max-height:560px), (max-height:560px) and (pointer:coarse), (max-width:1366px) and (any-pointer:coarse)');
  const owned=new WeakMap(),bound=new WeakSet();
  const layerOrder=[['satelliteToggle','Satellite'],['buildingsToggle','Buildings'],['parcelsToggle','Parcels'],['nsiStructuresToggle','Structural Impacts'],['roadImpactsToggle','Roads With 6+ Inches of Water'],['roadsToggle','Road Names'],['webcamsToggle','Cameras']];
@@ -192,6 +193,7 @@
   const followsThumb=track.width>0&&track.height>0&&max>min;
   bubble.toggleAttribute('data-nww-thumb-follow',followsThumb);
   const bubbleRect=bubble.getBoundingClientRect();
+  let bubbleRight=bubbleRect.right;
   if(desktop&&followsThumb)set(body,'--nww-timeline-notice-bottom',`${Math.ceil(innerHeight-bubbleRect.top+8)}px`);
   else body.style.removeProperty('--nww-timeline-notice-bottom');
   if(!followsThumb){
@@ -216,6 +218,17 @@
     }
    }
    set(bubble,'left',`${left}px`);
+   bubbleRight=dockLeft+left+width;
+  }
+  if(timelineKey){
+   const keyRect=desktop&&followsThumb?timelineKey.getBoundingClientRect():null;
+   const beside=Boolean(keyRect?.width&&bubbleRight+16<=keyRect.left);
+   if(beside){
+    const dockBottom=timeline.getBoundingClientRect().top+timeline.clientTop+timeline.clientHeight;
+    set(timelineKey,'--nww-key-bottom',`${dockBottom-bubbleRect.bottom}px`);
+    set(timelineKey,'--nww-key-height',`${bubbleRect.height}px`);
+   }
+   timelineKey.toggleAttribute('data-nww-key-beside',beside);
   }
   saveStyle(bubble);
  }
@@ -345,6 +358,7 @@
   const bubbleResize=new ResizeObserver(scheduleTimelineBubble);
   bubbleResize.observe(bubble);
   bubbleResize.observe(slider);
+  if(timelineKey)bubbleResize.observe(timelineKey);
   // Move the desktop reading with the native range event, before the map requests its frame.
   for(const event of ['input','change'])slider.addEventListener(event,followTimelineInput,{capture:true,passive:true});
   // Playback and day navigation set the range value without an input event.

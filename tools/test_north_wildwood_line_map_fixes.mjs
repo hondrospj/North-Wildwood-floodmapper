@@ -28,7 +28,7 @@ let cases=0;
 // stop the current run, or report its obsolete error to the current user.
 for(const outcome of ['resolve','reject']) {
   const clock=timers(),pending=[],notices=[];
-  const c=vm.createContext({playTimer:null,playbackGeneration:0,playbackInFlight:false,playbackObservedDaysAdvanced:0,playbackPausedForConfirmation:false,currentSeriesHours:[{},{}],
+  const c=vm.createContext({playTimer:null,playbackGeneration:0,playbackSpeedMultiplier:1,reschedulePlaybackFrame:null,playbackInFlight:false,playbackObservedDaysAdvanced:0,playbackPausedForConfirmation:false,currentSeriesHours:[{},{}],
     ...clock,performance:{now:()=>0},PLAYBACK_MINIMUM_FRAME_DELAY_MS:20,
     updatePlayPauseButton(){},setPlaybackStillThereOpen(){},toast:message=>notices.push(message),getPlaybackFrameDurationMs:()=>950,
     stepPlaybackForward(){const gate=deferred();pending.push(gate);return gate.promise;}});
@@ -40,6 +40,63 @@ for(const outcome of ['resolve','reject']) {
   pending[1].resolve();await flush();assert.equal([...clock.rows.values()].filter(t=>t.ms===950).length,1);
   clock.run(950);assert.equal(pending.length,3);c.stopPlayback();pending[2].resolve();await flush();
   assert.equal([...clock.rows.values()].filter(t=>t.ms===950).length,0);cases++;
+}
+// The 2× control can be set while paused, updates a queued deadline, and
+// retains a single frame in flight when changed during rendering.
+{
+  const clock = timers();
+  const pending = [];
+  const speedButton = new Map();
+  let now = 0;
+  const c = vm.createContext({
+    ...clock, playTimer: null, playbackGeneration: 0, playbackSpeedMultiplier: 1,
+    reschedulePlaybackFrame: null, playbackObservedDaysAdvanced: 0,
+    playbackPausedForConfirmation: false, currentSeriesHours: [{}, {}],
+    performance: {now: () => now}, PLAYBACK_MINIMUM_FRAME_DELAY_MS: 20,
+    updatePlayPauseButton() {}, setPlaybackStillThereOpen() {},
+    toast: message => assert.fail(message), getPlaybackFrameDurationMs: () => 950,
+    stepPlaybackForward() {
+      const frame = deferred();
+      pending.push(frame);
+      return frame.promise;
+    }
+  });
+  for (const name of ['togglePlaybackSpeed', 'clearPlaybackTimer', 'stopPlayback', 'startPlayback']) {
+    vm.runInContext(extract(name), c);
+  }
+  const clickSpeed = pressed => {
+    c.togglePlaybackSpeed({currentTarget: {setAttribute: (name, value) => speedButton.set(name, value)}});
+    assert.equal(speedButton.get('aria-pressed'), String(pressed));
+  };
+  const delays = () => Array.from(clock.rows.values(), row => row.ms);
+  clickSpeed(true);
+  assert.deepEqual(delays(), [], 'Setting speed while paused must not start playback');
+  c.startPlayback();
+  clock.run(0);
+  now = 100;
+  pending[0].resolve();
+  await flush();
+  assert.deepEqual(delays(), [375]);
+  now = 200;
+  clickSpeed(false);
+  assert.deepEqual(delays(), [750], 'Slowing down should replace the current deadline');
+  now = 500;
+  clickSpeed(true);
+  assert.deepEqual(delays(), [20], 'Speeding up past the new deadline should keep the minimum wait');
+  now = 520;
+  clock.run(20);
+  assert.equal(pending.length, 2);
+  now = 560;
+  clickSpeed(false);
+  assert.equal(pending.length, 2, 'Changing speed must not start a second frame during a render');
+  assert.deepEqual(delays(), []);
+  now = 600;
+  pending[1].resolve();
+  await flush();
+  assert.deepEqual(delays(), [870], 'The completed render should use the new speed');
+  c.stopPlayback();
+  assert.deepEqual(delays(), [], 'Pausing must cancel the rescheduled deadline');
+  cases++;
 }
 // The actual image loaders terminate a held request, release resources, ignore
 // late events and permit a new request for the same URL.

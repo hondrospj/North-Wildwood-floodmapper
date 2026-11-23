@@ -18,6 +18,51 @@
     line-height: 1;
   }
 
+  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineFloodKey {
+    left: auto !important;
+    width: max-content !important;
+    max-width: calc(100% - 40px) !important;
+    box-sizing: border-box !important;
+    padding-inline: 14px !important;
+    border: 1px solid transparent !important;
+  }
+
+  html[data-nww-phone] body #timelineDock #timelineSpeedBtn {
+    position: absolute;
+    top: 34px;
+    left: 70px;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    width: 42px;
+    height: 42px;
+    min-height: 42px !important;
+    max-height: 42px !important;
+    padding: 0;
+    border: 1px solid #526277;
+    border-radius: 12px;
+    background: #1b293d;
+    color: #f5f8ff;
+    font: 800 15px/1 Inter, system-ui, sans-serif;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  html[data-nww-phone] body #timelineDock #timelineSpeedBtn[aria-pressed="true"] {
+    background: #cfe4ff !important;
+    border-color: #b2d5ff !important;
+    color: #102747;
+  }
+
+  html[data-nww-phone] body #timelineDock :is(#playBtn, #timelineSpeedBtn):focus-visible {
+    outline: 2px solid #93c5fd !important;
+    outline-offset: 3px;
+  }
+
+  html[data-nww-phone] body #timelineDock[data-single-timeline-time="true"] #timelineDayTabs {
+    left: 126px !important;
+  }
+
   html[data-nww-phone] body #timelineDock #timelineBubble[data-nww-thumb-follow] {
     overflow: visible !important;
     box-sizing: border-box !important;
@@ -114,6 +159,18 @@
       top: 90px !important;
       height: 18px !important;
     }
+  }
+
+  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineFloodKey[data-nww-key-beside] {
+    top: auto !important;
+    bottom: var(--nww-key-bottom) !important;
+    height: var(--nww-key-height) !important;
+    min-height: var(--nww-key-height) !important;
+    max-height: var(--nww-key-height) !important;
+    border-color: #414d60 !important;
+    border-radius: 14px;
+    background: #111826;
+    box-shadow: 0 8px 20px rgb(0 0 0 / .18);
   }
 
   @media (max-width: 900px), (max-height: 560px), (max-width: 1366px) and (any-pointer: coarse) {
@@ -474,16 +531,25 @@
     }
 
     html[data-nww-phone] body #timelineDock #timelineBubble {
-      top: 4px !important;
-      left: 13px !important;
-      right: 151px !important;
-      height: 44px !important;
-      padding: 0 !important;
+      top: auto !important;
+      bottom: calc(100% + 8px) !important;
+      left: 8px !important;
+      right: auto !important;
+      box-sizing: border-box !important;
+      width: min(180px, calc(100% - 16px)) !important;
+      max-width: calc(100% - 16px) !important;
+      height: auto !important;
+      min-height: 34px !important;
+      padding: 4px 9px !important;
+      border: 1px solid #414b59 !important;
+      border-radius: 999px !important;
+      background: var(--phone-surface) !important;
       justify-content: center !important;
-      align-items: flex-start !important;
-      flex-direction: column !important;
-      gap: 2px !important;
+      align-items: center !important;
+      flex-direction: row !important;
+      gap: 6px !important;
       font-variant-numeric: tabular-nums;
+      pointer-events: none !important;
     }
 
     html[data-nww-phone] body #timelineDock #timelineBubble .timeline-bubble-current {
@@ -504,29 +570,16 @@
       color: #f8fbff !important;
     }
 
-    html[data-nww-phone] body #timelineDock #timelineBubble[data-nww-thumb-follow]::before {
+    html[data-nww-phone] body #timelineDock #timelineBubble::before,
+    html[data-nww-phone] body #timelineDock #timelineBubble::after {
       display: none !important;
     }
 
     html[data-nww-phone] body #timelineDock #timelineBubble[data-nww-thumb-follow] {
-      top: auto !important;
-      bottom: calc(100% + 8px) !important;
-      right: auto !important;
       width: min(180px, calc(100% - 16px)) !important;
-      max-width: calc(100% - 16px) !important;
-      height: auto !important;
-      min-height: 34px !important;
-      padding: 4px 9px !important;
-      border: 1px solid #414b59 !important;
-      border-radius: 999px !important;
-      background: var(--phone-surface) !important;
-      flex-direction: row !important;
-      align-items: center !important;
-      gap: 6px !important;
-      pointer-events: none !important;
     }
 
-    html[data-nww-phone] body #timelineDock :is(.timeline-step, #playBtn) {
+    html[data-nww-phone] body #timelineDock :is(.timeline-step, #playBtn, #timelineSpeedBtn) {
       top: 4px !important;
       width: 44px !important;
       height: 44px !important;
@@ -536,13 +589,18 @@
       box-shadow: none !important;
     }
 
-    html[data-nww-phone] body #timelineDock #timelineStepBack { right: 107px !important; }
-    html[data-nww-phone] body #timelineDock #timelineStepForward { right: 57px !important; }
+    html[data-nww-phone] body #timelineDock #timelineStepBack { right: 57px !important; }
+    html[data-nww-phone] body #timelineDock #timelineStepForward { right: 7px !important; }
     html[data-nww-phone] body #timelineDock #playBtn {
-      right: 7px !important;
-      left: auto !important;
+      right: auto !important;
+      left: 8px !important;
       background: linear-gradient(#fff, #edf2f7) !important;
       border-color: #e2e8f0 !important;
+    }
+    html[data-nww-phone] body #timelineDock #timelineSpeedBtn {
+      left: 58px;
+      min-height: 44px !important;
+      max-height: 44px !important;
     }
 
     html[data-nww-phone] body #timelineDock #playBtn .playTriangle {
@@ -550,8 +608,8 @@
       filter: none !important;
     }
 
-    html[data-nww-phone] body #timelineDock #playBtn .playPause::before,
-    html[data-nww-phone] body #timelineDock #playBtn .playPause::after { background: #ef4444 !important; }
+    html[data-nww-phone] body #timelineDock #playBtn .pauseIcon::before,
+    html[data-nww-phone] body #timelineDock #playBtn .pauseIcon::after { background: #ef4444 !important; }
 
     html[data-nww-phone] body #timelineDock :is(#timelineDayTabs, .timeline-day-arrow) {
       top: 51px !important;
@@ -562,7 +620,8 @@
 
     html[data-nww-phone] body #timelineDock .timeline-day-arrow { display: none !important; }
 
-    html[data-nww-phone] body #timelineDock #timelineDayTabs {
+    html[data-nww-phone] body #timelineDock #timelineDayTabs,
+    html[data-nww-phone] body #timelineDock[data-single-timeline-time="true"] #timelineDayTabs {
       left: 8px !important;
       right: 8px !important;
       width: auto !important;
@@ -737,11 +796,12 @@
     html[data-nww-phone] body:has(#timelineDock[data-single-timeline-time="true"]) {
       --phone-dock-base: 72px; --phone-legend-y: 51px;
     }
-    html[data-nww-phone] body #timelineDock #timelineBubble { width: 125px !important; right: auto !important; }
-    html[data-nww-phone] body #timelineDock #timelineStepBack { left: 144px !important; right: auto !important; }
-    html[data-nww-phone] body #timelineDock #timelineStepForward { left: 194px !important; right: auto !important; }
-    html[data-nww-phone] body #timelineDock #playBtn { left: 244px !important; right: auto !important; }
-    html[data-nww-phone] body #timelineDock #timelineDayTabs { left: 296px !important; right: 7px !important; top: 4px !important; }
+    html[data-nww-phone] body #timelineDock #timelineStepBack { left: 108px !important; right: auto !important; }
+    html[data-nww-phone] body #timelineDock #timelineStepForward { left: 158px !important; right: auto !important; }
+    html[data-nww-phone] body #timelineDock #timelineDayTabs,
+    html[data-nww-phone] body #timelineDock[data-single-timeline-time="true"] #timelineDayTabs {
+      left: 212px !important; right: 7px !important; top: 4px !important;
+    }
     html[data-nww-phone] body #timelineDock .timeline-day-arrow { display: none !important; }
     html[data-nww-phone] body #timelineDock .timeline-trackRow { top: 47px !important; }
   }
@@ -751,5 +811,10 @@
     html.county-compact[data-nww-phone] body :is(#legendDock, #nwwMobileUtilities #mapTitleBadge, #nwwMobileUtilities .nww-mobile-actions) { border-color: ButtonText !important; }
     html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-actions > button[aria-expanded="true"] { border-color: Highlight !important; }
     html[data-nww-phone] body #timelineDock #playBtn .playTriangle { border-left-color: ButtonText !important; }
+    html[data-nww-phone] body #timelineDock #timelineSpeedBtn[aria-pressed="true"] {
+      border-color: Highlight !important;
+      outline: 1px solid Highlight;
+      outline-offset: -3px;
+    }
   }
 }

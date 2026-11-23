@@ -1,0 +1,258 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "05f814c087fffb4d21ddc0fe694f7240d985a581",
+  "scope": "Fit the flood key beside the desktop timeline reading and add a separate double-speed playback control.",
+  "files": [
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "d5b5e230834b22cc72fdf3156b69dde6243e876e425706d8f615df93e74f57f9",
+      "afterSha256": "e7f03be2490aba7636562d23ebd8c02a9b324c0c5ea04660672be97b7632d0d9",
+      "edits": [
+        [
+          538141,
+          538469,
+          ""
+        ],
+        [
+          538533,
+          538571,
+          ""
+        ],
+        [
+          542666,
+          542706,
+          ""
+        ],
+        [
+          543059,
+          543729,
+          "        const renderDurationMs = performance.now() - frameStartedAt;\n        const nextFrameDelayMs = Math.max(\n          PLAYBACK_MINIMUM_FRAME_DELAY_MS,\n          getPlaybackFrameDurationMs() - renderDurationMs\n        );\n        playTimer = setTimeout(loop, nextFrameDelayMs);\n"
+        ],
+        [
+          693327,
+          693426,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "assets/app/unified-controller.js",
+      "beforeSha256": "5b0256915d8937ea4f1208398706d223df7b099645a81a80ea3f9632f57ac3f0",
+      "afterSha256": "0dc42823e8144bfc24bf8114c8f5d129b82091e4e9e8e1bc7fc1a9c8f597cd23",
+      "edits": [
+        [
+          900,
+          964,
+          ""
+        ],
+        [
+          17117,
+          17153,
+          ""
+        ],
+        [
+          18344,
+          18880,
+          ""
+        ],
+        [
+          30600,
+          30652,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "assets/north-wildwood-phone.css",
+      "beforeSha256": "30a1e02f5e445168f462e2e85099c2a3b0af29ea8dea7f98a6caffd1fd0ef47f",
+      "afterSha256": "8306eb044f3e1f615a437fad07e41590e81061f60b452a59774ac313ab8e8111",
+      "edits": [
+        [
+          604,
+          1916,
+          ""
+        ],
+        [
+          5689,
+          6154,
+          ""
+        ],
+        [
+          18647,
+          19154,
+          "      top: 4px !important;\n      left: 13px !important;\n      right: 151px !important;\n      height: 44px !important;\n      padding: 0 !important;\n"
+        ],
+        [
+          19196,
+          19299,
+          "      align-items: flex-start !important;\n      flex-direction: column !important;\n      gap: 2px !important;\n"
+        ],
+        [
+          19341,
+          19380,
+          ""
+        ],
+        [
+          20040,
+          20178,
+          "    html[data-nww-phone] body #timelineDock #timelineBubble[data-nww-thumb-follow]::before {\n"
+        ],
+        [
+          20302,
+          20302,
+          "      top: auto !important;\n      bottom: calc(100% + 8px) !important;\n      right: auto !important;\n"
+        ],
+        [
+          20357,
+          20459,
+          "      max-width: calc(100% - 16px) !important;\n      height: auto !important;\n      min-height: 34px !important;\n      padding: 4px 9px !important;\n      border: 1px solid #414b59 !important;\n      border-radius: 999px !important;\n      background: var(--phone-surface) !important;\n      flex-direction: row !important;\n      align-items: center !important;\n      gap: 6px !important;\n      pointer-events: none !important;\n    }\n\n    html[data-nww-phone] body #timelineDock :is(.timeline-step, #playBtn) {\n"
+        ],
+        [
+          20731,
+          20913,
+          "    html[data-nww-phone] body #timelineDock #timelineStepBack { right: 107px !important; }\n    html[data-nww-phone] body #timelineDock #timelineStepForward { right: 57px !important; }\n"
+        ],
+        [
+          20968,
+          21026,
+          "      right: 7px !important;\n      left: auto !important;\n"
+        ],
+        [
+          21127,
+          21285,
+          ""
+        ],
+        [
+          21444,
+          21624,
+          "    html[data-nww-phone] body #timelineDock #playBtn .playPause::before,\n    html[data-nww-phone] body #timelineDock #playBtn .playPause::after { background: #ef4444 !important; }\n"
+        ],
+        [
+          21945,
+          22104,
+          "    html[data-nww-phone] body #timelineDock #timelineDayTabs {\n"
+        ],
+        [
+          29106,
+          29576,
+          "    html[data-nww-phone] body #timelineDock #timelineBubble { width: 125px !important; right: auto !important; }\n    html[data-nww-phone] body #timelineDock #timelineStepBack { left: 144px !important; right: auto !important; }\n    html[data-nww-phone] body #timelineDock #timelineStepForward { left: 194px !important; right: auto !important; }\n    html[data-nww-phone] body #timelineDock #playBtn { left: 244px !important; right: auto !important; }\n    html[data-nww-phone] body #timelineDock #timelineDayTabs { left: 296px !important; right: 7px !important; top: 4px !important; }\n"
+        ],
+        [
+          30359,
+          30556,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "39da34d7be4b57cc9bce03afe223f07458e92e3f58a63b5de00efc38fcdb57dd",
+      "afterSha256": "d67d33a0160ffef62c1647f94217f89c52d96edb2cbf78eb791e3dd5a6eeb59e",
+      "edits": [
+        [
+          33735,
+          33827,
+          "<link rel=\"preload\" as=\"style\" href=\"./assets/north-wildwood-phone.css?v=30a1e02f5e445168\">\n"
+        ],
+        [
+          64973,
+          65080,
+          "<link data-nww-startup-style rel=\"stylesheet\" href=\"./assets/north-wildwood-phone.css?v=30a1e02f5e445168\">\n"
+        ],
+        [
+          87573,
+          87698,
+          ""
+        ],
+        [
+          109709,
+          109807,
+          "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=d5b5e230834b22cc\"></script>\n"
+        ],
+        [
+          112610,
+          112844,
+          "<script id=\"floodmapper-unified-controller-20261017\" data-ui-sha256=\"3668b4912f612ae595cb1ee4e11fdf9aa7a80ccfbdbfff78d243e7714470baf7\" data-nww-script=\"script-011\" src=\"./assets/app/unified-controller.js?v=5b0256915d8937ea\"></script>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "15efc550907d101b3d6e6876334c769a1a30fcabefeb1559353e1e7ad4aee3d8",
+      "afterSha256": "36b0393fb29e852eccb594fda6e93fe5fc931b9d53e966b4469e1919ed43bdc8",
+      "edits": [
+        [
+          29079,
+          29204,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/23-refresh-and-playback.js",
+      "beforeSha256": "2e7f479ae7a6ff91c2c5a0b40799be501b9d48a5b17bbe9b1fee0c31f2d65e7a",
+      "afterSha256": "49227127d28719df3ccad3e99480dff3c4d55d083b4f1811f52ed29c2c9dea53",
+      "edits": [
+        [
+          7853,
+          8181,
+          ""
+        ],
+        [
+          8245,
+          8283,
+          ""
+        ],
+        [
+          12378,
+          12418,
+          ""
+        ],
+        [
+          12771,
+          13441,
+          "        const renderDurationMs = performance.now() - frameStartedAt;\n        const nextFrameDelayMs = Math.max(\n          PLAYBACK_MINIMUM_FRAME_DELAY_MS,\n          getPlaybackFrameDurationMs() - renderDurationMs\n        );\n        playTimer = setTimeout(loop, nextFrameDelayMs);\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/28-tutorial-and-events.js",
+      "beforeSha256": "a10d959cc5fea50ca371b779675a6339ea9a660325cd38a0a43bce5232dc3e95",
+      "afterSha256": "5aa1f1a20f53a18e8b72f5337553892008a3bbe9e48ad69df7265ab5bbc55398",
+      "edits": [
+        [
+          24439,
+          24538,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/unified-controller.js",
+      "beforeSha256": "5b0256915d8937ea4f1208398706d223df7b099645a81a80ea3f9632f57ac3f0",
+      "afterSha256": "0dc42823e8144bfc24bf8114c8f5d129b82091e4e9e8e1bc7fc1a9c8f597cd23",
+      "edits": [
+        [
+          900,
+          964,
+          ""
+        ],
+        [
+          17117,
+          17153,
+          ""
+        ],
+        [
+          18344,
+          18880,
+          ""
+        ],
+        [
+          30600,
+          30652,
+          ""
+        ]
+      ]
+    }
+  ]
+}

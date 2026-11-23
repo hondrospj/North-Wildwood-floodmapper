@@ -11693,8 +11693,18 @@ function populateCalendarSelectors() {
     }
 
     let playbackGeneration = 0;
+    let playbackSpeedMultiplier = 1;
+    let reschedulePlaybackFrame = null;
+
+    function togglePlaybackSpeed(event) {
+      playbackSpeedMultiplier = playbackSpeedMultiplier === 1 ? 2 : 1;
+      event.currentTarget.setAttribute("aria-pressed", String(playbackSpeedMultiplier === 2));
+      reschedulePlaybackFrame?.();
+    }
+
     function clearPlaybackTimer() {
       ++playbackGeneration;
+      reschedulePlaybackFrame = null;
       if (playTimer) {
         clearTimeout(playTimer);
         clearInterval(playTimer);
@@ -11809,6 +11819,7 @@ function startPlayback() {
 
       const loop = async () => {
         if (!playTimer || generation !== playbackGeneration) return;
+        reschedulePlaybackFrame = null;
         const frameStartedAt = performance.now();
         try {
           await stepPlaybackForward();
@@ -11819,12 +11830,17 @@ function startPlayback() {
           return;
         }
         if (!playTimer || generation !== playbackGeneration) return;
-        const renderDurationMs = performance.now() - frameStartedAt;
-        const nextFrameDelayMs = Math.max(
-          PLAYBACK_MINIMUM_FRAME_DELAY_MS,
-          getPlaybackFrameDurationMs() - renderDurationMs
-        );
-        playTimer = setTimeout(loop, nextFrameDelayMs);
+        let scheduledFrameTimer;
+        // Recalculate the current deadline when the speed changes between frames.
+        // A frame already rendering still finishes before the next one starts.
+        reschedulePlaybackFrame = () => {
+          clearTimeout(scheduledFrameTimer);
+          const elapsedMs = performance.now() - frameStartedAt;
+          const frameDurationMs = getPlaybackFrameDurationMs() / playbackSpeedMultiplier;
+          const nextFrameDelayMs = Math.max(PLAYBACK_MINIMUM_FRAME_DELAY_MS, frameDurationMs - elapsedMs);
+          scheduledFrameTimer = playTimer = setTimeout(loop, nextFrameDelayMs);
+        };
+        reschedulePlaybackFrame();
         updatePlayPauseButton();
       };
 
@@ -14941,6 +14957,7 @@ function startPlayback() {
       }
       const stopBtn = document.getElementById("stopBtn");
       if (stopBtn) stopBtn.addEventListener("click", stopPlayback);
+      document.getElementById("timelineSpeedBtn")?.addEventListener("click", togglePlaybackSpeed);
 
       const reloadBtn = document.getElementById("reloadBtn");
       if (reloadBtn) {
