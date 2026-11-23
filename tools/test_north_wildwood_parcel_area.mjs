@@ -125,7 +125,6 @@ const historyElements = {
   floodHistoryAddress: {},
   floodHistoryTitle: {},
   floodHistoryHelpText: {},
-  floodHistoryVerified: { hidden: true },
 };
 Object.assign(ctx, {
   document: {
@@ -137,28 +136,45 @@ Object.assign(ctx, {
 });
 const building = { id: 518840, properties: {
   parcelId: 'test-parcel', nsi2026FootprintId: 'test-building', nsi2026ModeledFirstFloorNavd88Ft: 8.5,
+  nsi2026ModelElevationIndex: 85, nsi2026HistoricFirstFloorExceedanceCount: 0,
 } };
-const note = historyElements.floodHistoryVerified;
 await ctx.openFloodHistoryPane(building);
-assert.equal(note.hidden, true);
+assert.match(projectionBody.innerHTML, /Estimated Occupied Floor<\/span>\s*<strong>8\.5 /);
 const modeledProjection = projectionBody.innerHTML;
 const records = ctx.TOWN_CONFIG.parcels.verifiedElevationCertificates = {
   'test-parcel': { footprintId: 'test-building', reference: 'test-record' },
 };
 await ctx.openFloodHistoryPane(building);
-assert.equal(note.hidden, false);
-assert.match(historyElements.floodHistoryHelpText.textContent, /signed elevation certificate is on file.*modeled elevations/);
-assert.equal(projectionBody.innerHTML, modeledProjection, 'Certificate presence does not change the modeled results');
+assert.equal(projectionBody.innerHTML, modeledProjection, 'A record without a certified height leaves the estimate in place');
+const record = records['test-parcel'];
+record.firstFloorNavd88Ft = 5.54;
+await ctx.openFloodHistoryPane(building);
+assert.match(projectionBody.innerHTML, /Verified Elevation<\/span>\s*<strong>5\.54 /);
+assert.match(historyElements.floodHistoryHelpText.textContent, /signed elevation certificate.*nearest tenth/);
+const verifiedRow = cdf.elevationGridFtNavd88.indexOf(5.5);
+const count = cdf.historicFloodEventCountByElevation[verifiedRow];
+assert.ok(count > 0, 'The fixture distinguishes the certified tide count from the modeled count');
+assert.ok(projectionBody.innerHTML.includes(`<strong>${count.toLocaleString()}</strong>`));
+assert.ok(projectionBody.innerHTML.includes(ctx.renderProjectionChart(cdf, 'intermediate', verifiedRow, cdf.years.indexOf(2050))));
 await ctx.openFloodHistoryPane({ properties: { ...building.properties, nsi2026FootprintId: 'another-building' } });
-assert.equal(note.hidden, true, 'Do not transfer a certificate to another footprint on the parcel');
+assert.equal(projectionBody.innerHTML, modeledProjection, 'Do not transfer a certificate to another footprint on the parcel');
 assert.doesNotMatch(historyElements.floodHistoryHelpText.textContent, /certificate/);
 await ctx.openFloodHistoryPane({ properties: { ...building.properties, parcelId: 'another-parcel' } });
-assert.equal(note.hidden, true, 'Do not transfer a certificate to another parcel');
+assert.equal(projectionBody.innerHTML, modeledProjection, 'Do not transfer a certificate to another parcel');
 await ctx.openFloodHistoryPane(building, 'parcel');
-assert.equal(note.hidden, true, 'The building record does not apply to parcel-area projections');
-records['test-parcel'].reference = ' ';
+assert.match(projectionBody.innerHTML, /Estimated Area Threshold/);
+assert.doesNotMatch(projectionBody.innerHTML, /Verified Elevation/);
+record.firstFloorNavd88Ft = 0;
 await ctx.openFloodHistoryPane(building);
-assert.equal(note.hidden, true, 'A verified record requires a reference');
+assert.match(projectionBody.innerHTML, /Verified Elevation<\/span>\s*<strong>0 /);
+record.firstFloorNavd88Ft = cdf.elevationGridFtNavd88.at(-1) + 1;
+await ctx.openFloodHistoryPane(building);
+assert.match(projectionBody.innerHTML, /Verified Elevation/);
+assert.match(projectionBody.innerHTML, /outside the flood model’s range/);
+assert.doesNotMatch(projectionBody.innerHTML, /floodProjectionChart/);
+record.reference = ' ';
+await ctx.openFloodHistoryPane(building);
+assert.equal(projectionBody.innerHTML, modeledProjection, 'A verified record requires a reference');
 
 const selectedEntry = { stage: 3.16 };
 const selectedSeries = [selectedEntry];

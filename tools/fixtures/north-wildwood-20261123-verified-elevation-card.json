@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "f85bf7108ed191ecc0322a10c74bddfcc03bdf3e",
+  "scope": "Replace the header note with the certified occupied-floor elevation and use its threshold in flood calculations.",
+  "files": [
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "3a81b00cb7d5adc5a0145edfef5895611b103549706f8623182061c3eb007d53",
+      "afterSha256": "e80e0e5467ed860b53db4ff216fa420a146fea543eba2201abd5714084262992",
+      "edits": [
+        [
+          567545,
+          568155,
+          "    function findProjectionElevationIndex(feature, data) {\n"
+        ],
+        [
+          568252,
+          568843,
+          "      const preferred = Number(\n        feature?.properties?.nsi2026ModelElevationIndex ?? feature?.properties?.modelElevationIndex\n      );\n      if (Number.isInteger(preferred) && preferred >= 0 && preferred < grid.length) return preferred;\n      const elevation = Number(\n        feature?.properties?.nsi2026ModelElevationNavd88Ft ??\n        feature?.properties?.nsi2026ModeledFirstFloorNavd88Ft ??\n        feature?.properties?.modelElevationNavd88Ft ??\n        feature?.properties?.elevationNavd88Ft\n"
+        ],
+        [
+          572953,
+          574660,
+          "      const elevationIndex = parcelOption?.elevationIndex ?? findProjectionElevationIndex(feature, data);\n      const firstFloor = getNsiFirstOccupiedFloorNavd88(p);\n      const hasModeledFloor = Number.isFinite(firstFloor);\n      const historic = finiteStructureNumber(parcelOption ? data.historicFloodEventCountByElevation?.[elevationIndex] : hasModeledFloor\n        ? p.nsi2026HistoricFirstFloorExceedanceCount\n        : p.historicFloodEventCount);\n"
+        ],
+        [
+          575459,
+          575494,
+          "      body.innerHTML = `\n        <div class=\"flood-history-summary\">\n          <div class=\"flood-summary-item\">\n            <span>${parcelOption ? \"Past Tides Above Area Threshold\" : hasModeledFloor ? \"Past Floods Above Floor\" : \"Past Floods at Parcel\"}</span>\n            <strong>${Number.isFinite(historic) ? historic.toLocaleString() : \"—\"}</strong>\n          </div>\n          <div class=\"flood-summary-item\">\n            <span>${parcelOption ? \"Estimated Area Threshold\" : hasModeledFloor ? \"Estimated Occupied Floor\" : \"Parcel Ground\"}</span>\n            <strong>${parcelOption ? parcelOption.stage.toFixed(1) : hasModeledFloor ? firstFloor.toFixed(1) : Number(p.elevationNavd88Ft).toFixed(1)} <small>ft NAVD88</small></strong>\n          </div>\n        </div>\n"
+        ],
+        [
+          575593,
+          575732,
+          "            <h3>${parcelOption ? \"Future Floods by Parcel Area\" : hasModeledFloor ? \"Future Floods Above Floor\" : \"Future Floods at Parcel\"}</h3>\n"
+        ],
+        [
+          580534,
+          580628,
+          "      const certificate = TOWN_CONFIG.parcels?.verifiedElevationCertificates?.[properties.parcelId];\n      const verified = kind === \"building\" && Boolean(properties.parcelId && properties.nsi2026FootprintId) &&\n        certificate?.footprintId === properties.nsi2026FootprintId &&\n        typeof certificate.reference === \"string\" && Boolean(certificate.reference.trim());\n      const verificationNote = document.getElementById(\"floodHistoryVerified\");\n      if (verificationNote) verificationNote.hidden = !verified;\n"
+        ],
+        [
+          581132,
+          581650,
+          "        : Number.isFinite(getNsiFirstOccupiedFloorNavd88(properties))\n          ? \"Past tides show how often water rose above the estimated floor. Future estimates show how that could change as sea level rises.\"\n          : \"Past tides and future estimates use parcel ground elevation.\";\n      if (verified) help.textContent += \" A signed elevation certificate is on file for this building. This screen uses modeled elevations.\";\n"
+        ],
+        [
+          582351,
+          582628,
+          "          const start = parcel ? archive.startDate : properties.historicStartDate || archive.startDate;\n          const end = parcel ? archive.endDate : properties.historicEndDate || archive.endDate;\n"
+        ]
+      ]
+    },
+    {
+      "source": "assets/styles/app-05.css",
+      "beforeSha256": "180928629c1594cf82be9f343d84f39556e46c9eb02a94fb4d9906eb54374c71",
+      "afterSha256": "244aa39c8a42ca08fd7b10b9a8f283cc510c9687b94e0c5d608ca4e5281f145b",
+      "edits": [
+        [
+          313278,
+          313278,
+          "  .flood-history-verified{order:-1;color:#b9cce5;font-size:11px;font-weight:600;line-height:1.2}\n  @media (max-width:520px){\n    .flood-history-head-actions{display:grid;grid-template-columns:auto auto;gap:4px 7px;justify-items:end}\n    .flood-history-verified{order:0;grid-column:1/-1;max-width:84px;text-align:right}\n  }\n"
+        ]
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "6ee62efab153589183761add673f38b6dd2537ed6f0f3f7d68f01bd871b5b80c",
+      "afterSha256": "e73151cd78bac07c89f64e61d5e3d34415b7971ef22d1035ed9f943e06143676",
+      "edits": [
+        [
+          36483,
+          36568,
+          "<link rel=\"preload\" as=\"style\" href=\"./assets/styles/app-05.css?v=180928629c1594cf\">\n"
+        ],
+        [
+          67090,
+          67221,
+          "<link data-nww-startup-style rel=\"stylesheet\" data-nww-style-bundle=\"app-05\" href=\"./assets/styles/app-05.css?v=180928629c1594cf\">\n"
+        ],
+        [
+          106123,
+          106123,
+          "          <small id=\"floodHistoryVerified\" class=\"flood-history-verified\" hidden>* Flood elevation verified</small>\n"
+        ],
+        [
+          109828,
+          109926,
+          "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=3a81b00cb7d5adc5\"></script>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "8da9667303d4c6fd83312518d0073ca9d026ddbf72c02c6f31a0a552e16f5208",
+      "afterSha256": "23d110686eb96c541268f508de5551107f56ea34325bba84ed6118253f8c63fd",
+      "edits": [
+        [
+          47684,
+          47684,
+          "          <small id=\"floodHistoryVerified\" class=\"flood-history-verified\" hidden>* Flood elevation verified</small>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/24-alerts-and-projections.js",
+      "beforeSha256": "c43d15cc9aa86d8967032bb6b1a26bc5f1cc93aacadfc5f3be8fbb847fb301e7",
+      "afterSha256": "96ee915a358120f2ea8b904d585bce04268275318664118b26b8f946ab258ff7",
+      "edits": [
+        [
+          22702,
+          23312,
+          "    function findProjectionElevationIndex(feature, data) {\n"
+        ],
+        [
+          23409,
+          24000,
+          "      const preferred = Number(\n        feature?.properties?.nsi2026ModelElevationIndex ?? feature?.properties?.modelElevationIndex\n      );\n      if (Number.isInteger(preferred) && preferred >= 0 && preferred < grid.length) return preferred;\n      const elevation = Number(\n        feature?.properties?.nsi2026ModelElevationNavd88Ft ??\n        feature?.properties?.nsi2026ModeledFirstFloorNavd88Ft ??\n        feature?.properties?.modelElevationNavd88Ft ??\n        feature?.properties?.elevationNavd88Ft\n"
+        ],
+        [
+          28110,
+          29817,
+          "      const elevationIndex = parcelOption?.elevationIndex ?? findProjectionElevationIndex(feature, data);\n      const firstFloor = getNsiFirstOccupiedFloorNavd88(p);\n      const hasModeledFloor = Number.isFinite(firstFloor);\n      const historic = finiteStructureNumber(parcelOption ? data.historicFloodEventCountByElevation?.[elevationIndex] : hasModeledFloor\n        ? p.nsi2026HistoricFirstFloorExceedanceCount\n        : p.historicFloodEventCount);\n"
+        ],
+        [
+          30616,
+          30651,
+          "      body.innerHTML = `\n        <div class=\"flood-history-summary\">\n          <div class=\"flood-summary-item\">\n            <span>${parcelOption ? \"Past Tides Above Area Threshold\" : hasModeledFloor ? \"Past Floods Above Floor\" : \"Past Floods at Parcel\"}</span>\n            <strong>${Number.isFinite(historic) ? historic.toLocaleString() : \"—\"}</strong>\n          </div>\n          <div class=\"flood-summary-item\">\n            <span>${parcelOption ? \"Estimated Area Threshold\" : hasModeledFloor ? \"Estimated Occupied Floor\" : \"Parcel Ground\"}</span>\n            <strong>${parcelOption ? parcelOption.stage.toFixed(1) : hasModeledFloor ? firstFloor.toFixed(1) : Number(p.elevationNavd88Ft).toFixed(1)} <small>ft NAVD88</small></strong>\n          </div>\n        </div>\n"
+        ],
+        [
+          30750,
+          30889,
+          "            <h3>${parcelOption ? \"Future Floods by Parcel Area\" : hasModeledFloor ? \"Future Floods Above Floor\" : \"Future Floods at Parcel\"}</h3>\n"
+        ],
+        [
+          35691,
+          35785,
+          "      const certificate = TOWN_CONFIG.parcels?.verifiedElevationCertificates?.[properties.parcelId];\n      const verified = kind === \"building\" && Boolean(properties.parcelId && properties.nsi2026FootprintId) &&\n        certificate?.footprintId === properties.nsi2026FootprintId &&\n        typeof certificate.reference === \"string\" && Boolean(certificate.reference.trim());\n      const verificationNote = document.getElementById(\"floodHistoryVerified\");\n      if (verificationNote) verificationNote.hidden = !verified;\n"
+        ],
+        [
+          36289,
+          36807,
+          "        : Number.isFinite(getNsiFirstOccupiedFloorNavd88(properties))\n          ? \"Past tides show how often water rose above the estimated floor. Future estimates show how that could change as sea level rises.\"\n          : \"Past tides and future estimates use parcel ground elevation.\";\n      if (verified) help.textContent += \" A signed elevation certificate is on file for this building. This screen uses modeled elevations.\";\n"
+        ],
+        [
+          37508,
+          37785,
+          "          const start = parcel ? archive.startDate : properties.historicStartDate || archive.startDate;\n          const end = parcel ? archive.endDate : properties.historicEndDate || archive.endDate;\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/styles/style-064.css",
+      "beforeSha256": "0e59ffd1cf16e4caed60b2cd941898072db698b02f6a4830c30a946a14e66a8d",
+      "afterSha256": "739602003db07c5cda52104b9aaa61d73bcc54b041165d62e8daea3b2df7ca4b",
+      "edits": [
+        [
+          11553,
+          11553,
+          "  .flood-history-verified{order:-1;color:#b9cce5;font-size:11px;font-weight:600;line-height:1.2}\n  @media (max-width:520px){\n    .flood-history-head-actions{display:grid;grid-template-columns:auto auto;gap:4px 7px;justify-items:end}\n    .flood-history-verified{order:0;grid-column:1/-1;max-width:84px;text-align:right}\n  }\n"
+        ]
+      ]
+    }
+  ]
+}

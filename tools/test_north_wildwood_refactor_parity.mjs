@@ -12,6 +12,14 @@ import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const VERIFIED_ELEVATION_CARD_PATH = "tools/fixtures/north-wildwood-20261123-verified-elevation-card.json";
+const priorVerifiedElevationCardSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-verified-elevation-card-snapshot");
+const verifiedElevationCardText = fs.readFileSync(localPath(VERIFIED_ELEVATION_CARD_PATH));
+assert.equal(hashReleaseBytes(verifiedElevationCardText), "c17d0e8114f4b3ec5ab2d83a9ce6f018e84e7764e212b60293ca8416dcacaf86", "Retain the exact verified elevation card inverse");
+const verifiedElevationCard = JSON.parse(verifiedElevationCardText);
+assert.equal(verifiedElevationCard.schemaVersion, 1);
+assert.equal(verifiedElevationCard.baselineCommit, "f85bf7108ed191ecc0322a10c74bddfcc03bdf3e");
+const verifiedElevationCardFiles = new Map(verifiedElevationCard.files.map(entry => [entry.source, entry]));
 const ELEVATION_VERIFICATION_PATH = "tools/fixtures/north-wildwood-20261123-elevation-verification.json";
 const priorElevationVerificationSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-elevation-verification-snapshot");
 const elevationVerificationText = fs.readFileSync(localPath(ELEVATION_VERIFICATION_PATH));
@@ -135,8 +143,17 @@ function restoreReleaseBytes(bytes, entry, scope) {
   return restored;
 }
 
-function readBeforeElevationVerification(relative) {
+function readBeforeVerifiedElevationCard(relative) {
   const bytes = fs.readFileSync(localPath(relative));
+  const entry = verifiedElevationCardFiles.get(relative);
+  return priorVerifiedElevationCardSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "verified elevation card");
+}
+if (!priorVerifiedElevationCardSnapshot) {
+  for (const file of verifiedElevationCard.files) readBeforeVerifiedElevationCard(file.source);
+}
+
+function readBeforeElevationVerification(relative) {
+  const bytes = readBeforeVerifiedElevationCard(relative);
   const entry = elevationVerificationFiles.get(relative);
   return priorElevationVerificationSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "elevation verification");
 }
@@ -2915,6 +2932,7 @@ if (process.argv.includes("--self-test")) {
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
       DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
+      VERIFIED_ELEVATION_CARD_PATH, ...verifiedElevationCard.files.map(file => file.source),
       ELEVATION_VERIFICATION_PATH, ...elevationVerification.files.map(file => file.source),
       FRAME_LOADING_PATH, ...frameLoading.files.map(file => file.source),
       MAPPER_AUDIT_PATH, ...mapperAudit.files.map(file => file.source),
@@ -2942,7 +2960,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforeElevationVerification = (args = []) => runRelease(["--prior-elevation-verification-snapshot", ...args]);
+    const runBeforeVerifiedElevationCard = (args = []) => runRelease(["--prior-verified-elevation-card-snapshot", ...args]);
+    const runBeforeElevationVerification = (args = []) => runBeforeVerifiedElevationCard(["--prior-elevation-verification-snapshot", ...args]);
     const runBeforeFrameLoading = (args = []) => runBeforeElevationVerification(["--prior-frame-loading-snapshot", ...args]);
     const runBeforeMapperAudit = (args = []) => runBeforeFrameLoading(["--prior-mapper-audit-snapshot", ...args]);
     const runBeforePlaybackSpeed = (args = []) => runBeforeMapperAudit(["--prior-playback-speed-snapshot", ...args]);
@@ -2972,12 +2991,21 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered verified elevation card inverse", path.join(scratch, VERIFIED_ELEVATION_CARD_PATH), Buffer.concat([verifiedElevationCardText, Buffer.from(" ")])],
+      ...verifiedElevationCard.files.map(file => {
+        const target = path.join(scratch, file.source);
+        return ["unreviewed verified elevation card byte in " + file.source, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of verifiedElevationCard.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeVerifiedElevationCard(file.source));
+    assert.equal(runBeforeVerifiedElevationCard().status, 0, "The restored application before verified elevation card must pass");
+    assertMutationsRejected([
       ["altered elevation verification inverse", path.join(scratch, ELEVATION_VERIFICATION_PATH), Buffer.concat([elevationVerificationText, Buffer.from(" ")])],
       ...elevationVerification.files.map(file => {
         const target = path.join(scratch, file.source);
         return ["unreviewed elevation verification byte in " + file.source, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
       })
-    ], runRelease);
+    ], runBeforeVerifiedElevationCard);
     for (const file of elevationVerification.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeElevationVerification(file.source));
     assert.equal(runBeforeElevationVerification().status, 0, "The restored application before elevation verification must pass");
     assertMutationsRejected([

@@ -364,18 +364,21 @@ bulkhead-conditioned bare-earth surface. This avoids treating buildings as
 solid terrain walls—especially the open space beneath pile and pier
 foundations—and keeps the drainage surrogate aligned with its stated purpose.
 The rectangles are modeled approximations, not source footprint polygons,
-surveys, elevation certificates, or regulatory products. The structure-impact
-dots, historical exceedance counts, and parcel projections continue to use the
-same modeled first-floor thresholds.
+surveys, elevation certificates, or regulatory products. By default, the
+structure-impact dots, historical exceedance counts, and parcel projections
+use the same modeled first-floor thresholds.
 
-The building history dialog displays `* Flood elevation verified` when the
-town profile includes a reviewed certificate for the selected building.
+The building history dialog displays `Verified Elevation` and the certified
+occupied-floor height when the town profile includes a reviewed certificate
+for the selected building.
 In `tools/app/town-profile.json`, add entries under
 `config.parcels.verifiedElevationCertificates` keyed by `parcelId`. Each entry
-has a `footprintId` matching the parcel's `nsi2026FootprintId` and a
-`reference` identifying the official record. Verify the signed, as-built
-certificate against the current building and parcel before adding it. The
-modal still shows its modeled elevation and projections.
+has a `footprintId` matching the parcel's `nsi2026FootprintId`, a
+`reference` identifying the official record, and a numeric
+`firstFloorNavd88Ft`. Confirm that the signed, as-built certificate identifies
+the occupied floor of the current building and that the measurement is in feet
+NAVD88 before adding the entry. Historical counts and future projections use
+the nearest modeled elevation when the certified height is within coverage.
 
 The same city-primary series is fitted from equally weighted monthly means and
 rebased to January 1, 2026. The projection model includes that existing local

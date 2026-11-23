@@ -12293,17 +12293,27 @@ function startPlayback() {
       });
     }
 
-    function findProjectionElevationIndex(feature, data) {
+    function getVerifiedFloodHistoryElevation(properties) {
+      if (!properties.parcelId || !properties.nsi2026FootprintId) return null;
+      const certificate = TOWN_CONFIG.parcels?.verifiedElevationCertificates?.[properties.parcelId];
+      if (certificate?.footprintId !== properties.nsi2026FootprintId ||
+          typeof certificate.reference !== "string" || !certificate.reference.trim() ||
+          !Number.isFinite(certificate.firstFloorNavd88Ft)) return null;
+      return certificate.firstFloorNavd88Ft;
+    }
+
+    function findProjectionElevationIndex(feature, data, verifiedElevation = null) {
       const grid = Array.isArray(data?.elevationGridFtNavd88) ? data.elevationGridFtNavd88 : [];
-      const preferred = Number(
-        feature?.properties?.nsi2026ModelElevationIndex ?? feature?.properties?.modelElevationIndex
-      );
-      if (Number.isInteger(preferred) && preferred >= 0 && preferred < grid.length) return preferred;
-      const elevation = Number(
-        feature?.properties?.nsi2026ModelElevationNavd88Ft ??
-        feature?.properties?.nsi2026ModeledFirstFloorNavd88Ft ??
-        feature?.properties?.modelElevationNavd88Ft ??
-        feature?.properties?.elevationNavd88Ft
+      const p = feature?.properties || {};
+      if (verifiedElevation == null) {
+        const preferred = Number(p.nsi2026ModelElevationIndex ?? p.modelElevationIndex);
+        if (Number.isInteger(preferred) && preferred >= 0 && preferred < grid.length) return preferred;
+      } else if (!grid.length || verifiedElevation < grid[0] || verifiedElevation > grid.at(-1)) {
+        return -1;
+      }
+      const elevation = verifiedElevation ?? Number(
+        p.nsi2026ModelElevationNavd88Ft ?? p.nsi2026ModeledFirstFloorNavd88Ft ??
+        p.modelElevationNavd88Ft ?? p.elevationNavd88Ft
       );
       let bestIndex = 0;
       let bestDifference = Infinity;
@@ -12372,12 +12382,33 @@ function startPlayback() {
         body.innerHTML = '<div class="flood-history-error">Parcel-area projections are unavailable within the model’s coverage.</div>';
         return;
       }
-      const elevationIndex = parcelOption?.elevationIndex ?? findProjectionElevationIndex(feature, data);
-      const firstFloor = getNsiFirstOccupiedFloorNavd88(p);
-      const hasModeledFloor = Number.isFinite(firstFloor);
-      const historic = finiteStructureNumber(parcelOption ? data.historicFloodEventCountByElevation?.[elevationIndex] : hasModeledFloor
-        ? p.nsi2026HistoricFirstFloorExceedanceCount
-        : p.historicFloodEventCount);
+      const verifiedElevation = parcelOption ? null : getVerifiedFloodHistoryElevation(p);
+      const elevationIndex = parcelOption?.elevationIndex ?? findProjectionElevationIndex(feature, data, verifiedElevation);
+      const firstFloor = verifiedElevation ?? getNsiFirstOccupiedFloorNavd88(p);
+      const hasFloor = Number.isFinite(firstFloor);
+      const historic = finiteStructureNumber(parcelOption || verifiedElevation != null
+        ? data.historicFloodEventCountByElevation?.[elevationIndex]
+        : hasFloor ? p.nsi2026HistoricFirstFloorExceedanceCount : p.historicFloodEventCount);
+      const elevationLabel = parcelOption ? "Estimated Area Threshold"
+        : verifiedElevation != null ? "Verified Elevation"
+        : hasFloor ? "Estimated Occupied Floor" : "Parcel Ground";
+      const displayElevation = parcelOption?.stage.toFixed(1) ??
+        verifiedElevation ?? (hasFloor ? firstFloor : Number(p.elevationNavd88Ft)).toFixed(1);
+      const summary = `
+        <div class="flood-history-summary">
+          <div class="flood-summary-item">
+            <span>${parcelOption ? "Past Tides Above Area Threshold" : hasFloor ? "Past Floods Above Floor" : "Past Floods at Parcel"}</span>
+            <strong>${Number.isFinite(historic) ? historic.toLocaleString() : "—"}</strong>
+          </div>
+          <div class="flood-summary-item">
+            <span>${elevationLabel}</span>
+            <strong>${displayElevation} <small>ft NAVD88</small></strong>
+          </div>
+        </div>`;
+      if (elevationIndex < 0) {
+        body.innerHTML = summary + '<div class="flood-history-error">The verified elevation is outside the flood model’s range.</div>';
+        return;
+      }
       const defaultYearIndex = yearIndex ?? Math.max(0, years.indexOf(2050));
       const scenarioKey = data.annualFloodEventCount?.[selectedFloodProjectionScenario]
         ? selectedFloodProjectionScenario
@@ -12389,20 +12420,10 @@ function startPlayback() {
       const lower = record.lower95[elevationIndex];
       const upper = record.upper95[elevationIndex];
       body.style.setProperty("--scenario-color", scenario.color);
-      body.innerHTML = `
-        <div class="flood-history-summary">
-          <div class="flood-summary-item">
-            <span>${parcelOption ? "Past Tides Above Area Threshold" : hasModeledFloor ? "Past Floods Above Floor" : "Past Floods at Parcel"}</span>
-            <strong>${Number.isFinite(historic) ? historic.toLocaleString() : "—"}</strong>
-          </div>
-          <div class="flood-summary-item">
-            <span>${parcelOption ? "Estimated Area Threshold" : hasModeledFloor ? "Estimated Occupied Floor" : "Parcel Ground"}</span>
-            <strong>${parcelOption ? parcelOption.stage.toFixed(1) : hasModeledFloor ? firstFloor.toFixed(1) : Number(p.elevationNavd88Ft).toFixed(1)} <small>ft NAVD88</small></strong>
-          </div>
-        </div>
+      body.innerHTML = `${summary}
         <section class="flood-history-section">
           <div class="flood-history-section-head">
-            <h3>${parcelOption ? "Future Floods by Parcel Area" : hasModeledFloor ? "Future Floods Above Floor" : "Future Floods at Parcel"}</h3>
+            <h3>${parcelOption ? "Future Floods by Parcel Area" : hasFloor ? "Future Floods Above Floor" : "Future Floods at Parcel"}</h3>
             ${parcelOption ? `<label class="flood-scenario-field flood-area-field">
               Flooded area
               <select id="floodProjectionAreaSelect" class="flood-scenario-select">
@@ -12475,21 +12496,17 @@ function startPlayback() {
       if (!backdrop || !body) return;
       const parcel = kind === "parcel";
       const properties = feature.properties || {};
-      const certificate = TOWN_CONFIG.parcels?.verifiedElevationCertificates?.[properties.parcelId];
-      const verified = kind === "building" && Boolean(properties.parcelId && properties.nsi2026FootprintId) &&
-        certificate?.footprintId === properties.nsi2026FootprintId &&
-        typeof certificate.reference === "string" && Boolean(certificate.reference.trim());
-      const verificationNote = document.getElementById("floodHistoryVerified");
-      if (verificationNote) verificationNote.hidden = !verified;
+      const verifiedElevation = parcel ? null : getVerifiedFloodHistoryElevation(properties);
       address.textContent = properties.address || `Selected ${TOWN_CONFIG.site.name} parcel`;
       document.getElementById("floodHistoryTitle").textContent = parcel ? "Parcel Flood Projections" : "Flood History & Projections";
       const help = document.getElementById("floodHistoryHelpText");
       help.textContent = parcel
         ? "Any Flooding means water covers more than 0% of the parcel. Projections include water already inside the parcel and require a threshold within the model’s range."
-        : Number.isFinite(getNsiFirstOccupiedFloorNavd88(properties))
-          ? "Past tides show how often water rose above the estimated floor. Future estimates show how that could change as sea level rises."
-          : "Past tides and future estimates use parcel ground elevation.";
-      if (verified) help.textContent += " A signed elevation certificate is on file for this building. This screen uses modeled elevations.";
+        : verifiedElevation != null
+          ? "The occupied floor elevation comes from a signed elevation certificate. Where covered, past flood counts and future projections use the nearest tenth of a foot in the model."
+          : Number.isFinite(getNsiFirstOccupiedFloorNavd88(properties))
+            ? "Past tides show how often water rose above the estimated floor. Future estimates show how that could change as sea level rises."
+            : "Past tides and future estimates use parcel ground elevation.";
       body.innerHTML = '<div class="flood-history-loading" aria-hidden="true"></div>';
       backdrop.hidden = false;
       backdrop.setAttribute("aria-hidden", "false");
@@ -12501,8 +12518,9 @@ function startPlayback() {
         const parcelOptions = parcel ? await getParcelProjectionOptions(feature, data) : null;
         if (request === floodHistoryRequest && !backdrop.hidden) {
           const archive = data.observedArchive || {};
-          const start = parcel ? archive.startDate : properties.historicStartDate || archive.startDate;
-          const end = parcel ? archive.endDate : properties.historicEndDate || archive.endDate;
+          const usesArchive = parcel || verifiedElevation != null;
+          const start = usesArchive ? archive.startDate : properties.historicStartDate || archive.startDate;
+          const end = usesArchive ? archive.endDate : properties.historicEndDate || archive.endDate;
           const dates = [start, end].map(date => {
             const parsed = new Date(`${date}T00:00:00Z`);
             return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date
