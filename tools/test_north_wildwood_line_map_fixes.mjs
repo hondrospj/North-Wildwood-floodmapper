@@ -65,7 +65,9 @@ for(const outcome of ['resolve','reject']) {
     vm.runInContext(extract(name), c);
   }
   const clickSpeed = pressed => {
-    c.togglePlaybackSpeed({currentTarget: {setAttribute: (name, value) => speedButton.set(name, value)}});
+    const button = {setAttribute: (name, value) => speedButton.set(name, value)};
+    c.togglePlaybackSpeed({currentTarget: button});
+    assert.equal(button.textContent, pressed ? '2×' : '1×');
     assert.equal(speedButton.get('aria-pressed'), String(pressed));
   };
   const delays = () => Array.from(clock.rows.values(), row => row.ms);
@@ -96,6 +98,157 @@ for(const outcome of ['resolve','reject']) {
   assert.deepEqual(delays(), [870], 'The completed render should use the new speed');
   c.stopPlayback();
   assert.deepEqual(delays(), [], 'Pausing must cancel the rescheduled deadline');
+  cases++;
+}
+
+function playbackEntries(levels, {times, dates, phases, interval = 15} = {}) {
+  const epoch = Date.parse('2026-11-23T08:00:00Z');
+  return levels.map((stage, index) => ({
+    stage,
+    time: times?.[index] === null ? null : epoch + (times?.[index] ?? index * interval) * 60000,
+    observedDate: dates?.[index],
+    phase: phases?.[index] ?? 'filling'
+  }));
+}
+
+function playbackFixture({entries, interval = 15} = {}) {
+  const clock = timers();
+  const frames = [];
+  let now = 0;
+  const c = vm.createContext({
+    ...clock, playTimer: null, playbackGeneration: 0, playbackSpeedMultiplier: 1,
+    reschedulePlaybackFrame: null, playbackObservedDaysAdvanced: 0,
+    playbackPausedForConfirmation: false, currentHourIndex: 0, currentViewType: 'forecast',
+    currentSeriesHours: entries ?? playbackEntries(Array.from({length: 14}, (_, index) => 3.5 + 0.01 * index), {interval}),
+    PLAYBACK_MINIMUM_FRAME_DELAY_MS: 20, PLAYBACK_SIMULATED_HOUR_MS: 950,
+    MINOR_FLOOD_FT: 3.25, MODERATE_FLOOD_FT: 4.25, MAJOR_FLOOD_FT: 5.25,
+    performance: {now: () => now}, getTimelineIntervalMinutes: () => interval,
+    entryTimeMs: entry => entry.time, getStageValue: entry => entry.stage,
+    getHydraulicPhaseForEntry: entry => entry.phase,
+    getTimelineNavigationIndex: () => c.currentHourIndex,
+    updatePlayPauseButton() {}, setPlaybackStillThereOpen() {}, toast: message => assert.fail(message),
+    renderHour(index) {
+      const frame = deferred();
+      frames.push({index, started: now, resolve: frame.resolve});
+      return frame.promise.then(result => {
+        if (result !== false) c.currentHourIndex = index;
+        return result;
+      });
+    }
+  });
+  for (const name of ['classifyFloodStage', 'getPlaybackCatchUpStep', 'getPlaybackFrameDurationMs', 'stepSeriesBy',
+    'stepPlaybackForward', 'togglePlaybackSpeed', 'clearPlaybackTimer', 'stopPlayback', 'startPlayback']) {
+    vm.runInContext(extract(name), c);
+  }
+  return {
+    c, frames,
+    toggleSpeed: () => c.togglePlaybackSpeed({currentTarget: {setAttribute() {}}}),
+    start() { c.startPlayback(); clock.run(0); },
+    async finishFrame(renderMs, result = true) {
+      const frame = frames.at(-1);
+      now = frame.started + renderMs;
+      frame.resolve(result);
+      await flush();
+      assert.equal(clock.rows.size, 1, 'Playback should queue exactly one next tick');
+      const [{ms}] = clock.rows.values();
+      now += ms;
+      clock.run(ms);
+    }
+  };
+}
+
+// Compare committed step sizes and requested start times on the same renderer.
+for (const [renderMs, speed, expectedIndices, expectedPeriod] of [
+  [60, 1, [1, 2, 3, 4], 237.5],
+  [60, 2, [1, 2, 3, 4], 118.75],
+  [260, 1, [1, 2, 3, 4], 280],
+  [260, 2, [1, 3, 5, 7], 280]
+]) {
+  const fixture = playbackFixture();
+  if (speed === 2) fixture.toggleSpeed();
+  fixture.start();
+  for (let frame = 1; frame < expectedIndices.length; frame++) await fixture.finishFrame(renderMs);
+  assert.deepEqual(fixture.frames.map(frame => frame.index), expectedIndices, `${speed}× step size at ${renderMs} ms`);
+  assert.deepEqual(fixture.frames.map(frame => frame.started), expectedIndices.map((_, index) => index * expectedPeriod));
+  fixture.c.stopPlayback();
+  cases++;
+}
+
+// Daily maxima must still display every crest even while 2× is behind schedule.
+{
+  const fixture = playbackFixture({interval: 1440});
+  fixture.toggleSpeed();
+  fixture.start();
+  await fixture.finishFrame(1100);
+  await fixture.finishFrame(1100);
+  assert.deepEqual(fixture.frames.map(frame => frame.index), [1, 2, 3]);
+  assert.deepEqual(fixture.frames.map(frame => frame.started), [0, 1120, 2240]);
+  fixture.c.stopPlayback();
+  cases++;
+}
+
+// Switching away from and back to 2× must discard timing credit from the old session.
+{
+  const fixture = playbackFixture();
+  fixture.toggleSpeed();
+  fixture.start();
+  await fixture.finishFrame(200);
+  fixture.toggleSpeed();
+  fixture.toggleSpeed();
+  assert.equal(fixture.frames.length, 2, 'A speed change cannot overlap the frame already rendering');
+  await fixture.finishFrame(200);
+  assert.deepEqual(fixture.frames.map(frame => frame.index), [1, 2, 3]);
+  fixture.c.stopPlayback();
+  cases++;
+}
+
+// Keep individual frames whenever dropping the middle reading could conceal information.
+{
+  const fixture = playbackFixture();
+  fixture.toggleSpeed();
+  fixture.start();
+  await fixture.finishFrame(260, false);
+  assert.deepEqual(fixture.frames.map(frame => frame.index), [1, 1],
+    'A canceled slow render cannot create credit to skip its unshown reading');
+  fixture.c.stopPlayback();
+  cases++;
+}
+
+for (const [reason, levels, options, expected] of [
+  ['steady rising series', [3.5, 3.6, 3.7], {}, 2],
+  ['steady falling series', [3.7, 3.6, 3.5], {phases: ['draining', 'draining', 'draining']}, 2],
+  ['minor threshold', [3.2, 3.25, 3.3], {}, 1],
+  ['moderate threshold', [4.2, 4.25, 4.3], {}, 1],
+  ['major threshold', [5.2, 5.25, 5.3], {}, 1],
+  ['local crest', [3.5, 3.7, 3.6], {}, 1],
+  ['local trough', [3.7, 3.5, 3.6], {}, 1],
+  ['missing level', [3.5, null, 3.7], {}, 1],
+  ['missing timestamp', [3.5, 3.6, 3.7], {times: [0, null, 30]}, 1],
+  ['uneven time gaps', [3.5, 3.6, 3.7], {times: [0, 15, 45]}, 1],
+  ['equally missing intervals', [3.5, 3.6, 3.7], {times: [0, 30, 60]}, 1],
+  ['observed day boundary', [3.5, 3.6, 3.7], {dates: ['2026-11-23', '2026-11-23', '2026-11-24']}, 1],
+  ['hydraulic transition', [3.5, 3.6, 3.7], {phases: ['filling', 'filling', 'slack']}, 1],
+  ['series endpoint', [3.5, 3.6], {}, 1],
+  ['daily maximum', [3.5, 3.6, 3.7], {interval: 1440}, 1]
+]) {
+  const fixture = playbackFixture({entries: playbackEntries(levels, options), interval: options.interval});
+  assert.equal(fixture.c.getPlaybackCatchUpStep(), expected, reason);
+  cases++;
+}
+
+// Manual navigation and ordinary playback advance one reading even when a skip would be eligible.
+{
+  const fixture = playbackFixture();
+  fixture.toggleSpeed();
+  assert.equal(fixture.c.getPlaybackCatchUpStep(), 2);
+  const moved = fixture.c.stepSeriesBy(1);
+  assert.equal(fixture.frames[0].index, 1);
+  fixture.frames[0].resolve(true);
+  await moved;
+  const next = fixture.c.stepPlaybackForward();
+  assert.equal(fixture.frames[1].index, 2);
+  fixture.frames[1].resolve(true);
+  await next;
   cases++;
 }
 // The actual image loaders terminate a held request, release resources, ignore

@@ -195,7 +195,9 @@
 
     function togglePlaybackSpeed(event) {
       playbackSpeedMultiplier = playbackSpeedMultiplier === 1 ? 2 : 1;
-      event.currentTarget.setAttribute("aria-pressed", String(playbackSpeedMultiplier === 2));
+      const button = event.currentTarget;
+      button.textContent = `${playbackSpeedMultiplier}×`;
+      button.setAttribute("aria-pressed", String(playbackSpeedMultiplier === 2));
       reschedulePlaybackFrame?.();
     }
 
@@ -278,17 +280,45 @@
       }
     }
 
-    async function stepPlaybackForward() {
+    function getPlaybackCatchUpStep() {
+      const index = getTimelineNavigationIndex();
+      const intervalMinutes = getTimelineIntervalMinutes();
+      if (index !== currentHourIndex || intervalMinutes === 1440) return 1;
+      const entries = currentSeriesHours.slice(index, index + 3);
+      const [current, intermediate, next] = entries;
+      if (!current || !intermediate || !next ||
+          intermediate.observedDate !== current.observedDate || next.observedDate !== current.observedDate) return 1;
+
+      const [startTime, middleTime, endTime] = entries.map(entryTimeMs);
+      const intervalMs = intervalMinutes * 60_000;
+      if (![startTime, middleTime, endTime].every(Number.isFinite) ||
+          middleTime - startTime !== intervalMs || endTime - middleTime !== intervalMs) return 1;
+      const levels = entries.map(getStageValue);
+      if (!levels.every(Number.isFinite)) return 1;
+      const [start, middle, end] = levels;
+      // Always show local highs/lows, category changes, and hydraulic
+      // transitions as individual frames, even if rendering falls behind.
+      if (middle < Math.min(start, end) || middle > Math.max(start, end)) return 1;
+      const category = classifyFloodStage(start);
+      if (levels.some(level => classifyFloodStage(level) !== category)) return 1;
+      const phase = getHydraulicPhaseForEntry(entries[0], index, currentSeriesHours);
+      if (entries.some((entry, offset) =>
+        getHydraulicPhaseForEntry(entry, index + offset, currentSeriesHours) !== phase)) return 1;
+      return 2;
+    }
+
+    async function stepPlaybackForward(catchUp = false) {
       const generation = playbackGeneration;
       const previousDate = currentViewType === "observed-day"
         ? currentSeriesHours[currentHourIndex]?.observedDate || selectedObservedDate : null;
-      const advanced = await stepSeriesBy(1);
+      const advanced = await stepSeriesBy(catchUp ? getPlaybackCatchUpStep() : 1);
       if (!playTimer || generation !== playbackGeneration) return;
       if (!currentSeriesHours.length) {
         stopPlayback();
         return;
       }
-      if (advanced === false || !previousDate || currentViewType !== "observed-day") return;
+      if (advanced === false) return false;
+      if (!previousDate || currentViewType !== "observed-day") return;
       const nextDate = currentSeriesHours[currentHourIndex]?.observedDate || selectedObservedDate;
       if (nextDate && nextDate > previousDate) {
         playbackObservedDaysAdvanced += 1;
@@ -313,13 +343,35 @@ function startPlayback() {
       playTimer = setTimeout(() => {}, 0);
       updatePlayPauseButton();
       const generation = playbackGeneration;
+      let scheduleNext = null;
+      let previousFrameStartedAt = null;
+      let lagMs = 0;
 
+      reschedulePlaybackFrame = () => {
+        previousFrameStartedAt = null;
+        lagMs = 0;
+        scheduleNext?.();
+      };
       const loop = async () => {
         if (!playTimer || generation !== playbackGeneration) return;
-        reschedulePlaybackFrame = null;
+        scheduleNext = null;
         const frameStartedAt = performance.now();
+        const frameDurationMs = getPlaybackFrameDurationMs() / playbackSpeedMultiplier;
+        let catchUp = false;
+        if (playbackSpeedMultiplier === 2 && previousFrameStartedAt !== null) {
+          lagMs = Math.min(2 * frameDurationMs,
+            Math.max(0, lagMs + frameStartedAt - previousFrameStartedAt - frameDurationMs));
+          catchUp = lagMs >= frameDurationMs;
+          // Make up at most one overdue reading. Do not carry a burst of
+          // overdue frames after a stalled request or background tab.
+          if (catchUp) lagMs %= frameDurationMs;
+        }
+        previousFrameStartedAt = frameStartedAt;
         try {
-          await stepPlaybackForward();
+          if (await stepPlaybackForward(catchUp) === false) {
+            previousFrameStartedAt = null;
+            lagMs = 0;
+          }
         } catch (err) {
           if (generation !== playbackGeneration) return;
           toast(err?.message || String(err));
@@ -330,14 +382,14 @@ function startPlayback() {
         let scheduledFrameTimer;
         // Recalculate the current deadline when the speed changes between frames.
         // A frame already rendering still finishes before the next one starts.
-        reschedulePlaybackFrame = () => {
+        scheduleNext = () => {
           clearTimeout(scheduledFrameTimer);
           const elapsedMs = performance.now() - frameStartedAt;
           const frameDurationMs = getPlaybackFrameDurationMs() / playbackSpeedMultiplier;
           const nextFrameDelayMs = Math.max(PLAYBACK_MINIMUM_FRAME_DELAY_MS, frameDurationMs - elapsedMs);
           scheduledFrameTimer = playTimer = setTimeout(loop, nextFrameDelayMs);
         };
-        reschedulePlaybackFrame();
+        scheduleNext();
         updatePlayPauseButton();
       };
 

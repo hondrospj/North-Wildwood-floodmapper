@@ -12,6 +12,14 @@ import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const PLAYBACK_SPEED_PATH = "tools/fixtures/north-wildwood-20261123-playback-speed.json";
+const priorPlaybackSpeedSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-playback-speed-snapshot");
+const playbackSpeedText = fs.readFileSync(localPath(PLAYBACK_SPEED_PATH));
+assert.equal(hashReleaseBytes(playbackSpeedText), "a4411e9b76f33d47f48f4d33d5f8e24c96cf073ebddc43b8690ef7f2bc749c8f", "Retain the exact playback speed inverse");
+const playbackSpeed = JSON.parse(playbackSpeedText);
+assert.equal(playbackSpeed.schemaVersion, 1);
+assert.equal(playbackSpeed.baselineCommit, "62c7442d30ec583452e80e05e72abbb62ac18696");
+const playbackSpeedFiles = new Map(playbackSpeed.files.map(entry => [entry.source, entry]));
 const KEY_POLISH_PATH = "tools/fixtures/north-wildwood-20261123-timeline-key-polish.json";
 const priorKeyPolishSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-key-polish-snapshot");
 const keyPolishText = fs.readFileSync(localPath(KEY_POLISH_PATH));
@@ -103,8 +111,17 @@ function restoreReleaseBytes(bytes, entry, scope) {
   return restored;
 }
 
-function readBeforeKeyPolish(relative) {
+function readBeforePlaybackSpeed(relative) {
   const bytes = fs.readFileSync(localPath(relative));
+  const entry = playbackSpeedFiles.get(relative);
+  return priorPlaybackSpeedSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "playback speed");
+}
+if (!priorPlaybackSpeedSnapshot) {
+  for (const file of playbackSpeed.files) readBeforePlaybackSpeed(file.source);
+}
+
+function readBeforeKeyPolish(relative) {
+  const bytes = readBeforePlaybackSpeed(relative);
   const entry = keyPolishFiles.get(relative);
   return priorKeyPolishSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "timeline key polish");
 }
@@ -2847,6 +2864,7 @@ if (process.argv.includes("--self-test")) {
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
       DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
+      PLAYBACK_SPEED_PATH, ...playbackSpeed.files.map(file => file.source),
       KEY_POLISH_PATH, ...keyPolish.files.map(file => file.source),
       MAPPER_BLOAT_PATH, ...mapperBloat.files.map(file => file.source),
       TIMELINE_PANEL_PATH, ...timelinePanel.files.map(file => file.source),
@@ -2870,7 +2888,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforeKeyPolish = (args = []) => runRelease(["--prior-key-polish-snapshot", ...args]);
+    const runBeforePlaybackSpeed = (args = []) => runRelease(["--prior-playback-speed-snapshot", ...args]);
+    const runBeforeKeyPolish = (args = []) => runBeforePlaybackSpeed(["--prior-key-polish-snapshot", ...args]);
     const runBeforeMapperBloat = (args = []) => runBeforeKeyPolish(["--prior-mapper-bloat-snapshot", ...args]);
     const runBeforeTimelinePanel = (args = []) => runBeforeMapperBloat(["--prior-timeline-panel-snapshot", ...args]);
     const runBeforeTimelineControls = (args = []) => runBeforeTimelinePanel(["--prior-timeline-controls-snapshot", ...args]);
@@ -2896,12 +2915,21 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered playback speed inverse", path.join(scratch, PLAYBACK_SPEED_PATH), Buffer.concat([playbackSpeedText, Buffer.from(" ")])],
+      ...playbackSpeed.files.map(file => {
+        const target = path.join(scratch, file.source);
+        return [`unreviewed playback speed byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of playbackSpeed.files) fs.writeFileSync(path.join(scratch, file.source), readBeforePlaybackSpeed(file.source));
+    assert.equal(runBeforePlaybackSpeed().status, 0, "The restored application before the playback speed fix must pass");
+    assertMutationsRejected([
       ["altered timeline key polish inverse", path.join(scratch, KEY_POLISH_PATH), Buffer.concat([keyPolishText, Buffer.from(" ")])],
       ...keyPolish.files.map(file => {
         const target = path.join(scratch, file.source);
         return [`unreviewed timeline key polish byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
       })
-    ], runRelease);
+    ], runBeforePlaybackSpeed);
     for (const file of keyPolish.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeKeyPolish(file.source));
     assert.equal(runBeforeKeyPolish().status, 0, "The restored application before timeline key polish must pass");
     assertMutationsRejected([

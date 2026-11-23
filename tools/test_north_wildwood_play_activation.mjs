@@ -9,17 +9,25 @@ const browser = await playwright[name === 'edge' ? 'chromium' : name].launch({he
   ...(name === 'chromium' && !process.env.CHROME_PATH && process.env.NWW_CHROMIUM_CHANNEL ? {channel:process.env.NWW_CHROMIUM_CHANNEL} : {}),
   ...(name === 'chromium' && process.env.CHROME_PATH ? {executablePath:process.env.CHROME_PATH} : {})});
 const source = fs.readFileSync(process.env.NWW_PLAY_SOURCE || new URL('./app/runtime/28-tutorial-and-events.js',import.meta.url),'utf8');
-const wiring = source.match(/      const playButton = document\.getElementById\("playBtn"\);[\s\S]*?(?=\n      const stopBtn)/)?.[0];
+const wiring = source.match(/      const playButton = document\.getElementById\("playBtn"\);[\s\S]*?(?=\n      const reloadBtn)/)?.[0];
 assert.ok(wiring,'Actual Play wiring must be present');
+const markup = fs.readFileSync(new URL('./app/index.template.html', import.meta.url), 'utf8');
+const playback = fs.readFileSync(new URL('./app/runtime/23-refresh-and-playback.js', import.meta.url), 'utf8');
+const speedMarkup = markup.match(/<button id="timelineSpeedBtn"[^>]*>[^<]*<\/button>/)?.[0];
+const speedWiring = playback.match(/^    function togglePlaybackSpeed\([^)]*\) \{[\s\S]*?^    \}/m)?.[0];
+assert.ok(speedMarkup && speedWiring, 'Actual speed button and its playback handler must be present');
 try {
   const context = await browser.newContext({viewport:{width:700,height:400},hasTouch:true});
   const page = await context.newPage();
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
-  await page.setContent(`<style>#timelineDock{position:absolute;left:20px;top:20px;width:600px;height:150px}#playBtn{position:absolute;left:20px;top:20px;width:44px;height:44px}#other{position:absolute;left:65px;top:20px;width:30px;height:44px}</style>
-    <section id="timelineDock"><button id="playBtn">Play</button><button id="other">Other</button></section><button id="outside" style="position:absolute;top:300px">Outside</button>`);
+  await page.setContent(`<style>#timelineDock{position:absolute;left:20px;top:20px;width:600px;height:150px}#playBtn{position:absolute;left:20px;top:20px;width:44px;height:44px}#other{position:absolute;left:65px;top:20px;width:30px;height:44px}#timelineSpeedBtn{position:absolute;left:100px;top:20px;width:44px;height:44px}</style>
+    <section id="timelineDock"><button id="playBtn">Play</button><button id="other">Other</button>${speedMarkup}</section><button id="outside" style="position:absolute;top:300px">Outside</button>`);
   await page.addScriptTag({content:`window.playActivations=[];
     function updatePlayPauseButton(){}
     function togglePlayback(event){playActivations.push({type:event.type,button:event.button});}
+    let playbackSpeedMultiplier = 1;
+    let reschedulePlaybackFrame = null;
+    ${speedWiring}
     ${wiring}`});
   const count=()=>page.evaluate(()=>playActivations.length);
   const check=async(label,action,expected=1)=>{
@@ -60,6 +68,28 @@ try {
   await check('Separate rapid clicks each activate once',async()=>{
     await page.locator('#playBtn').click();await page.locator('#playBtn').click();
   },2);
+
+  const speedButton = page.getByRole('button', { name: 'Double playback speed' });
+  const expectSpeed = async (multiplier, label) => {
+    const state = await speedButton.evaluate(button => ({
+      label: button.textContent,
+      pressed: button.getAttribute('aria-pressed'),
+      rate: playbackSpeedMultiplier,
+    }));
+    assert.deepEqual(state, { label: `${multiplier}×`, pressed: String(multiplier === 2), rate: multiplier }, label);
+  };
+  await page.evaluate(() => { playActivations = []; });
+  await expectSpeed(1, 'Initially displays the current speed');
+  await speedButton.click({ delay: 400 });
+  await expectSpeed(2, 'A held mouse click toggles to 2× once');
+  await speedButton.press('Space');
+  await expectSpeed(1, 'Space returns to 1×');
+  await speedButton.press('Enter');
+  await expectSpeed(2, 'Enter toggles to 2×');
+  await speedButton.tap();
+  await expectSpeed(1, 'A touch tap returns to 1×');
+  assert.equal(await count(), 0, 'Speed changes cannot activate Play');
+
   assert.deepEqual(errors,[]);
-  console.log(`PASS ${name}: Play primary click/hold, keyboard, touch, cancellation, nonprimary, disabled and enlarged hit area`);
+  console.log(`PASS ${name}: Play and speed controls support native mouse, keyboard and touch activation`);
 }finally{await browser.close();}

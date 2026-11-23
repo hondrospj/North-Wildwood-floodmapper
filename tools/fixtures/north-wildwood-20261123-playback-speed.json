@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "62c7442d30ec583452e80e05e72abbb62ac18696",
+  "scope": "Show the selected playback speed and catch up by at most one intermediate reading while preserving significant tide changes.",
+  "files": [
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "1cb3b596bf2daef7627ea2389d7d8b0a634e65bf3a102fc9b54f73f0f8f456dd",
+      "afterSha256": "3aa88f53fcd07b008268533b8b7293df2e06f2b8c35b384786f6789230f6cbc1",
+      "edits": [
+        [
+          532655,
+          532838,
+          "      event.currentTarget.setAttribute(\"aria-pressed\", String(playbackSpeedMultiplier === 2));\n"
+        ],
+        [
+          535480,
+          537098,
+          "    async function stepPlaybackForward() {\n"
+        ],
+        [
+          537298,
+          537381,
+          "      const advanced = await stepSeriesBy(1);\n"
+        ],
+        [
+          537536,
+          537651,
+          "      if (advanced === false || !previousDate || currentViewType !== \"observed-day\") return;\n"
+        ],
+        [
+          538608,
+          538701,
+          ""
+        ],
+        [
+          538702,
+          538835,
+          ""
+        ],
+        [
+          538937,
+          538966,
+          "        reschedulePlaybackFrame = null;\n"
+        ],
+        [
+          539016,
+          539653,
+          ""
+        ],
+        [
+          539667,
+          539807,
+          "          await stepPlaybackForward();\n"
+        ],
+        [
+          540253,
+          540284,
+          "        reschedulePlaybackFrame = () => {\n"
+        ],
+        [
+          540681,
+          540705,
+          "        reschedulePlaybackFrame();\n"
+        ]
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "2c1f24609b31742e980e7aa60795936c07676f0713577f7f77b95979d5293777",
+      "afterSha256": "57619b7885924b632dbeb2838bb7b99495b0fc8961efc7f25b31e6058a9308e8",
+      "edits": [
+        [
+          87678,
+          87803,
+          "            <button id=\"timelineSpeedBtn\" type=\"button\" aria-label=\"Double playback speed\" aria-pressed=\"false\">2×</button>\n"
+        ],
+        [
+          109814,
+          109912,
+          "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=1cb3b596bf2daef7\"></script>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "3378d0fc1f252a4720f820bee7f3a6795d85d868d1d61c839c63177f1cea5b7a",
+      "afterSha256": "b6414a33d2d9a8cd103b64dc771b4884c0dadf4c53781904dc56ec9fe8cb47bf",
+      "edits": [
+        [
+          29203,
+          29328,
+          "            <button id=\"timelineSpeedBtn\" type=\"button\" aria-label=\"Double playback speed\" aria-pressed=\"false\">2×</button>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/23-refresh-and-playback.js",
+      "beforeSha256": "c6a83bacb251391ec500446ef11e346f94f79b6d19afcb1c7b3ff956aaa2a64b",
+      "afterSha256": "9f1d9a11b7a280384dda1fd53d99ab2b5df4f2fc634d08d0fa78fdc1843d9e60",
+      "edits": [
+        [
+          8089,
+          8272,
+          "      event.currentTarget.setAttribute(\"aria-pressed\", String(playbackSpeedMultiplier === 2));\n"
+        ],
+        [
+          10914,
+          12532,
+          "    async function stepPlaybackForward() {\n"
+        ],
+        [
+          12732,
+          12815,
+          "      const advanced = await stepSeriesBy(1);\n"
+        ],
+        [
+          12970,
+          13085,
+          "      if (advanced === false || !previousDate || currentViewType !== \"observed-day\") return;\n"
+        ],
+        [
+          14042,
+          14135,
+          ""
+        ],
+        [
+          14136,
+          14269,
+          ""
+        ],
+        [
+          14371,
+          14400,
+          "        reschedulePlaybackFrame = null;\n"
+        ],
+        [
+          14450,
+          15087,
+          ""
+        ],
+        [
+          15101,
+          15241,
+          "          await stepPlaybackForward();\n"
+        ],
+        [
+          15687,
+          15718,
+          "        reschedulePlaybackFrame = () => {\n"
+        ],
+        [
+          16115,
+          16139,
+          "        reschedulePlaybackFrame();\n"
+        ]
+      ]
+    }
+  ]
+}
