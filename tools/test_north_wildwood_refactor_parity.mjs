@@ -15,7 +15,7 @@ const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex
 const TIMELINE_KEY_PATH = "tools/fixtures/north-wildwood-20261123-timeline-key.json";
 const priorTimelineKeySnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-timeline-key-snapshot");
 const timelineKeyText = fs.readFileSync(localPath(TIMELINE_KEY_PATH));
-assert.equal(hashReleaseBytes(timelineKeyText), "ced44206d30ac27aa34718e6cd8ab0679c086590293dd833803f3a63916223a0", "Retain the exact timeline key inverse");
+assert.equal(hashReleaseBytes(timelineKeyText), "5201a639f409c64ca58ba727b5fcff2c9c543df5db1f3ecbea390e47c0f19652", "Retain the exact timeline key inverse");
 const timelineKey = JSON.parse(timelineKeyText);
 assert.equal(timelineKey.schemaVersion, 1);
 assert.equal(timelineKey.baselineCommit, "d1c2763dc8ce65d249152e5f574a2c2c0bc898ae");

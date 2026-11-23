@@ -632,7 +632,7 @@
 
     html[data-nww-phone] body #timelineDock #timelineFloodKey:has(#roadImpactsKey:not([hidden])) {
       display: grid !important;
-      grid-template-columns: repeat(5, max-content);
+      grid-template-columns: repeat(5, max-content) !important;
       grid-template-rows: 18px 16px;
       justify-content: center !important;
       align-content: start !important;
@@ -720,6 +720,15 @@
     html[data-nww-phone] body :is(#mapCredits summary,#nwwMobileUtilities button):focus-visible {
       outline: 2px solid #e0f1ff !important;
       outline-offset: 2px !important;
+    }
+  }
+
+  @media (max-width: 360px) {
+    html[data-nww-phone] body #timelineDock #timelineFloodKey {
+      column-gap: 4px !important;
+    }
+    html[data-nww-phone] body #timelineDock #timelineFloodKey .timeline-key-label {
+      font-size: 12px !important;
     }
   }
 
