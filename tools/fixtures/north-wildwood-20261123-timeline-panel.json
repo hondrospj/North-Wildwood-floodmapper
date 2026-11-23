@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "baselineCommit": "3fdfb6a189cc6382391848e127e278d623d10b32",
-  "scope": "Stack the flood categories inside the timeline\u2019s right edge and match both playback controls to the dark panel.",
+  "scope": "Stack the flood categories with a centered Key heading inside the timeline and match the playback controls to the panel.",
   "files": [
     {
       "source": "assets/app/unified-controller.js",
@@ -33,7 +33,7 @@
     {
       "source": "assets/north-wildwood-phone.css",
       "beforeSha256": "8306eb044f3e1f615a437fad07e41590e81061f60b452a59774ac313ab8e8111",
-      "afterSha256": "944ca122970268f52879b9f2bfe6fd54112c62cd71aff4a63edb919b2fa5df8f",
+      "afterSha256": "e95d5d3a3099af743df9880316b751d7e3e9693898f767136c354b7de2dd7fa4",
       "edits": [
         [
           350,
@@ -42,117 +42,127 @@
         ],
         [
           489,
-          1076,
+          1072,
           "    justify-content: flex-end !important;\n"
         ],
         [
-          1206,
-          3398,
-          "    line-height: 1;\n  }\n\n  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineFloodKey {\n    left: auto !important;\n    width: max-content !important;\n    max-width: calc(100% - 40px) !important;\n    box-sizing: border-box !important;\n    padding-inline: 14px !important;\n    border: 1px solid transparent !important;\n"
-        ],
-        [
-          3709,
-          3709,
-          "    border: 1px solid #526277;\n"
-        ],
-        [
-          3734,
-          3734,
-          "    background: #1b293d;\n    color: #f5f8ff;\n"
-        ],
-        [
-          3838,
-          3838,
-          "  }\n\n  html[data-nww-phone] body #timelineDock #timelineSpeedBtn[aria-pressed=\"true\"] {\n    background: #cfe4ff !important;\n    border-color: #b2d5ff !important;\n    color: #102747;\n"
-        ],
-        [
-          5960,
-          5960,
-          "    right: var(--nww-desktop-slider-edge) !important;\n"
-        ],
-        [
-          7694,
-          8447,
-          "    html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineFloodKey {\n      top: 90px !important;\n      height: 18px !important;\n    }\n  }\n\n  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineFloodKey[data-nww-key-beside] {\n    top: auto !important;\n    bottom: var(--nww-key-bottom) !important;\n    height: var(--nww-key-height) !important;\n    min-height: var(--nww-key-height) !important;\n    max-height: var(--nww-key-height) !important;\n    border-color: #414d60 !important;\n    border-radius: 14px;\n    background: #111826;\n    box-shadow: 0 8px 20px rgb(0 0 0 / .18);\n"
-        ],
-        [
-          9129,
-          9129,
-          "      --phone-legend-y: 132px;\n"
-        ],
-        [
-          9387,
-          9482,
-          "    html[data-nww-phone] body:has(#roadImpactsKey:not([hidden])) { --phone-road-space: 17px; }\n"
-        ],
-        [
-          9567,
-          9745,
-          "      --phone-dock-base: 119px;\n      --phone-legend-y: 98px;\n"
-        ],
-        [
-          22963,
-          23031,
+          1139,
+          1188,
           ""
         ],
         [
-          23472,
-          23472,
+          1208,
+          1229,
+          "    font-size: 12px;\n"
+        ],
+        [
+          1251,
+          3443,
+          "    line-height: 1;\n  }\n\n  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineFloodKey {\n    left: auto !important;\n    width: max-content !important;\n    max-width: calc(100% - 40px) !important;\n    box-sizing: border-box !important;\n    padding-inline: 14px !important;\n    border: 1px solid transparent !important;\n"
+        ],
+        [
+          3754,
+          3754,
+          "    border: 1px solid #526277;\n"
+        ],
+        [
+          3779,
+          3779,
+          "    background: #1b293d;\n    color: #f5f8ff;\n"
+        ],
+        [
+          3883,
+          3883,
+          "  }\n\n  html[data-nww-phone] body #timelineDock #timelineSpeedBtn[aria-pressed=\"true\"] {\n    background: #cfe4ff !important;\n    border-color: #b2d5ff !important;\n    color: #102747;\n"
+        ],
+        [
+          6005,
+          6005,
+          "    right: var(--nww-desktop-slider-edge) !important;\n"
+        ],
+        [
+          6707,
+          6875,
+          ""
+        ],
+        [
+          7907,
+          8805,
+          "    html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineFloodKey {\n      top: 90px !important;\n      height: 18px !important;\n    }\n  }\n\n  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineFloodKey[data-nww-key-beside] {\n    top: auto !important;\n    bottom: var(--nww-key-bottom) !important;\n    height: var(--nww-key-height) !important;\n    min-height: var(--nww-key-height) !important;\n    max-height: var(--nww-key-height) !important;\n    border-color: #414d60 !important;\n    border-radius: 14px;\n    background: #111826;\n    box-shadow: 0 8px 20px rgb(0 0 0 / .18);\n"
+        ],
+        [
+          9487,
+          9487,
+          "      --phone-legend-y: 132px;\n"
+        ],
+        [
+          9957,
+          10103,
+          "      --phone-legend-y: 98px;\n"
+        ],
+        [
+          23321,
+          23389,
+          ""
+        ],
+        [
+          23830,
+          23830,
           "      background: linear-gradient(#fff, #edf2f7) !important;\n      border-color: #e2e8f0 !important;\n"
         ],
         [
-          23636,
-          23636,
+          23994,
+          23994,
           "\n    html[data-nww-phone] body #timelineDock #playBtn .playTriangle {\n      border-left-color: #ef4444 !important;\n      filter: none !important;\n    }\n\n    html[data-nww-phone] body #timelineDock #playBtn .pauseIcon::before,\n    html[data-nww-phone] body #timelineDock #playBtn .pauseIcon::after { background: #ef4444 !important; }\n"
         ],
         [
-          24144,
-          24195,
+          24502,
+          24553,
           "      right: 8px !important;\n"
         ],
         [
-          25544,
-          25595,
+          25902,
+          25953,
           "      right: 13px !important;\n"
         ],
         [
-          26546,
-          26666,
+          26904,
+          27056,
           "      top: var(--phone-legend-y) !important;\n      height: calc(19px + var(--phone-road-space)) !important;\n      max-height: none !important;\n      justify-content: center !important;\n      column-gap: clamp(4px, 1.45vw, 13px) !important;\n"
         ],
         [
-          26717,
-          26950,
+          27107,
+          28197,
           "    html[data-nww-phone] body #timelineDock #timelineFloodKey:has(#roadImpactsKey:not([hidden])) {\n      display: grid !important;\n      grid-template-columns: repeat(5, max-content) !important;\n      grid-template-rows: 18px 16px;\n      justify-content: center !important;\n      align-content: start !important;\n      align-items: center !important;\n      row-gap: 0 !important;\n    }\n\n    html[data-nww-phone] body #timelineDock #roadImpactsKey:not([hidden]) {\n      grid-column: 1 / -1;\n      justify-self: center;\n"
         ],
         [
-          27041,
-          27075,
+          28288,
+          28322,
           "      color: #f5f8ff !important;\n      font: 650 13px/16px Inter, system-ui, sans-serif !important;\n"
         ],
         [
-          30089,
-          30089,
+          31336,
+          31336,
           "  @media (max-width: 360px) {\n    html[data-nww-phone] body #timelineDock #timelineFloodKey {\n      column-gap: 4px !important;\n    }\n    html[data-nww-phone] body #timelineDock #timelineFloodKey .timeline-key-label {\n      font-size: 12px !important;\n    }\n  }\n\n"
         ],
         [
-          30172,
-          30203,
+          31419,
+          31520,
           "    html[data-nww-phone] body { --phone-dock-base: 106px; --phone-legend-y: 84px; --phone-dock-max: 650px; }\n"
         ],
         [
-          30288,
-          30351,
+          31605,
+          31636,
           "      --phone-dock-base: 72px; --phone-legend-y: 51px;\n"
         ],
         [
-          30747,
-          30891,
-          "      left: 212px !important; right: 7px !important; top: 4px !important;\n    }\n"
+          32032,
+          32331,
+          "      left: 212px !important; right: 7px !important; top: 4px !important;\n"
         ],
         [
-          31674,
-          31785,
+          33120,
+          33231,
           "    html[data-nww-phone] body #timelineDock #timelineSpeedBtn[aria-pressed=\"true\"] {\n"
         ]
       ]
@@ -160,7 +170,7 @@
     {
       "source": "index.html",
       "beforeSha256": "d67d33a0160ffef62c1647f94217f89c52d96edb2cbf78eb791e3dd5a6eeb59e",
-      "afterSha256": "3bd9d7be4cd8ac6fae1eb4ae17f6ccb44e0513ec4650f53513e908cc2f825962",
+      "afterSha256": "e8f91a320309177c723f8ea0ad6d6497771d0cc05d75a83de4beda8ae850003a",
       "edits": [
         [
           33735,

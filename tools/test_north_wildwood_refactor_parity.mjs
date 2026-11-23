@@ -15,7 +15,7 @@ const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex
 const TIMELINE_PANEL_PATH = "tools/fixtures/north-wildwood-20261123-timeline-panel.json";
 const priorTimelinePanelSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-timeline-panel-snapshot");
 const timelinePanelText = fs.readFileSync(localPath(TIMELINE_PANEL_PATH));
-assert.equal(hashReleaseBytes(timelinePanelText), "760fb3ab018671a8311369a949f003897de279483fb0b30ccbbbcef1ab45af12", "Retain the exact timeline panel inverse");
+assert.equal(hashReleaseBytes(timelinePanelText), "7603a61959774ac3d308b901862b9dd9b98a50b13d1c14d9dabfb7460b60b9b8", "Retain the exact timeline panel inverse");
 const timelinePanel = JSON.parse(timelinePanelText);
 assert.equal(timelinePanel.schemaVersion, 1);
 assert.equal(timelinePanel.baselineCommit, "3fdfb6a189cc6382391848e127e278d623d10b32");
