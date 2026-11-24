@@ -210,6 +210,7 @@ body[data-road-impacts-state="loading"] #roadImpactsStatus{display:none!importan
 body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!important}
 .nww-picker-message:empty{display:none!important}
 </style>
+
 </head>
 <body data-floodmapper-loading-ui="branded" data-county-viewport="20261017" data-county-mobile="20261015" data-county-fix="20261015" class="nw-app-loading" data-flood-frame-cache="bounded-composites-20261008" data-flood-frame-swap="decode-before-swap-20261008" data-shorelysafe-ui="20261017" data-flood-frame-resilience="retain-retry-20261013" data-floodmapper-reference="20261017" data-fleet-viewport-existing="true" data-floodmapper-unified="20261017.3">
   <div id="nwSiteLoader" role="status" aria-live="polite" aria-label="Map status">
@@ -245,6 +246,29 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
 <link data-nww-startup-style rel="stylesheet" href="assets/export-date-time-picker.css?v=9a8f640254cba6b4">
 <link data-nww-startup-style rel="stylesheet" href="assets/north-wildwood-type.css?v=20261021-tablet1">
 <link data-nww-startup-style rel="stylesheet" data-nww-style-bundle="app-05" href="./assets/styles/app-05.css?v=244aa39c8a42ca08">
+<style data-nww-startup-style id="floodmapper-mobile-address-layout">
+  body[data-unified-layout="mobile"] #townAddressCard .rail-head > div {
+    inline-size: 100%;
+  }
+
+  /* Allow two lines for the address actions on narrow phones. */
+  @media (max-width: 359px) {
+    #leftPanel #townAddressCard .town-address-actions {
+      min-block-size: 3.625rem;
+    }
+  }
+
+  @media (max-width: 319px) {
+    /* Keep the header and legend in the same place if the town name wraps. */
+    html[data-nww-phone] body {
+      --phone-header-height: 4rem;
+    }
+
+    #leftPanel #townAddressTitle {
+      min-block-size: 2lh;
+    }
+  }
+</style>
   <div id="floodFrameStatus" role="status" aria-live="polite" hidden></div>
   <div id="topBanner" hidden aria-hidden="true">
     <div class="banner-text">
