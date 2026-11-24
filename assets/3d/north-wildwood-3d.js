@@ -352,6 +352,8 @@
         source: options.sourceId,
         paint: {
           "raster-opacity": options.opacity,
+          // The old frame is retired at commit, so the new one must be visible immediately.
+          ...(options.immediateOpacity ? { "raster-opacity-transition": { duration: 0, delay: 0 } } : {}),
           "raster-resampling": "linear",
           "raster-fade-duration": 0
         }
@@ -1007,6 +1009,7 @@
     updateImageLayer({
       sourceId: drape.sourceId,
       layerId: drape.layerId,
+      immediateOpacity: true,
       url: url,
       coordinates: coordinates,
       opacity: overlayOpacity,
@@ -1074,6 +1077,7 @@
         addLayerBelowMask(request.plane);
         updateImageLayer({ sourceId: request.drape.sourceId, layerId: request.drape.layerId,
           url: url, coordinates: coordinates, opacity: 0, visible: true,
+          immediateOpacity: true,
           beforeId: glMap.getLayer("nw-2d-buildings") ? "nw-2d-buildings" : undefined });
         request.source = requestedMap.getSource(request.drape.sourceId);
       }
