@@ -376,17 +376,17 @@ for (let y = 1; y < feederHeight; y += 1) {
 let playbackIntervalMinutes = 15;
 const playbackContext = vm.createContext({
   getTimelineIntervalMinutes: () => playbackIntervalMinutes,
-  PLAYBACK_SIMULATED_HOUR_MS: 950,
+  PLAYBACK_FRAME_DURATION_MS: 500,
 });
 vm.runInContext(
   `${extractFunction("getPlaybackFrameDurationMs")}; globalThis.getPlaybackFrameDurationMs = getPlaybackFrameDurationMs;`,
   playbackContext
 );
-assert.equal(playbackContext.getPlaybackFrameDurationMs(), 237.5);
+assert.equal(playbackContext.getPlaybackFrameDurationMs(), 500);
 playbackIntervalMinutes = 60;
-assert.equal(playbackContext.getPlaybackFrameDurationMs(), 950);
+assert.equal(playbackContext.getPlaybackFrameDurationMs(), 500);
 playbackIntervalMinutes = 1440;
-assert.equal(playbackContext.getPlaybackFrameDurationMs(), 950);
+assert.equal(playbackContext.getPlaybackFrameDurationMs(), 500);
 const prefetch=extractFunction("preloadAroundHour");
 if(/getOverlayRecord\(/.test(prefetch))assert.match(prefetch,/currentOverlayMode/);
 else assert.doesNotMatch(prefetch,/fetch\(|preloadImage\(/,"On-demand rendering must not preload full-resolution composites");

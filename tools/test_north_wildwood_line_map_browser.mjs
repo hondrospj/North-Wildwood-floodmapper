@@ -125,7 +125,7 @@ try {
           window.__mapPlaybackAction=null;
           const held=__mapSteps.slice();held.forEach(item=>item.resolve());
           await Promise.all(held.map(item=>item.promise));
-          return Math.max(PLAYBACK_MINIMUM_FRAME_DELAY_MS,getPlaybackFrameDurationMs());
+          return getPlaybackFrameDurationMs();
         },mutant);
         await page.clock.runFor(delay-1);
         assert.equal(await page.evaluate(()=>__mapSteps.length),2,'Held frame continuations must wait for their controlled deadline');

@@ -36,7 +36,7 @@ try {
     }
     await page.goto(url, {waitUntil:'domcontentloaded', timeout:45_000});
     await page.waitForFunction(() => floodFrameState === 'ready' && document.body.dataset.siteLoader === 'complete' &&
-      document.body.hasAttribute('data-nww-credits-ready'), {}, {timeout:45_000});
+      Boolean(map?.attributionControl?.getContainer()), {}, {timeout:45_000});
     const state = await page.evaluate(() => {
       const box = id => {
         const element = document.querySelector(id);
@@ -60,7 +60,7 @@ try {
     }
     assert.equal(state.dock.height,viewport.height<500 ? 106 : 154,layout);
     assert(state.nav.every(box => box === null),layout);
-    assert.equal(state.credits,null,'Credits are available in the Controls drawer');
+    assert.equal(state.credits,null,'Map credits disclosure is removed');
     assert.ok(state.toolbar.height === 50 && state.toolbar.bottom < state.dock.top,layout);
     assert.ok(state.title.left >= state.toolbar.left && state.title.right <= state.tour.left,layout);
     const actions = [state.tour,state.controls,state.key];
@@ -152,8 +152,9 @@ try {
     assert.equal(await page.locator('#mobileMapperTutorialBtn').getAttribute('aria-label'),'Take the Flood Mapper Tour');
     await page.evaluate(()=>{ document.body.dataset.tourAttention='true'; });
     assert.equal(await page.locator('#mobileMapperTutorialBtn').evaluate(el=>getComputedStyle(el).animationName),'none');
-    assert.equal(await page.locator('#map .leaflet-control-attribution').isVisible(),false);
-    assert(!/\bLeaflet\b/.test(await page.locator('#mapCreditsSources').textContent()));
+    const attribution = await page.locator('#map .leaflet-control-attribution').textContent();
+    assert.match(attribution, /Esri/i);
+    assert.doesNotMatch(attribution, /\bLeaflet\b/);
     const key = page.getByRole('button',{name:'Legend',exact:true});
     await key.tap();
     await page.waitForFunction(()=>document.getElementById('nwwMobileLegendToggle').getAttribute('aria-expanded')==='true');
@@ -237,13 +238,7 @@ try {
     }, {}, {timeout:7_000});
     await drawer.getByRole('switch',{name:/roads with 6\+ inches of water/i}).waitFor();
     await drawer.getByRole('tab',{name:'Tools'}).tap();
-    const credits = drawer.getByText('Map credits',{exact:true});
-    await credits.tap();
-    await drawer.locator('#mapCredits a[href*="openstreetmap.org/copyright"]').waitFor({state:'visible'});
-    assert.match(await drawer.locator('#mapCreditsSources').textContent(),/Esri/i);
-    await credits.press('Escape');
-    assert.equal(await page.locator('#mapCredits').getAttribute('open'),null);
-    assert(await drawer.isVisible(),'Closing credits keeps the Controls drawer open');
+    assert.equal(await drawer.getByText('Map credits', {exact:true}).count(), 0);
     await page.locator('#townAddressCard').waitFor();
     await page.locator('#openDownloadModalBtn').tap();
     await page.locator('#downloadModal').waitFor();

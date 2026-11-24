@@ -115,8 +115,7 @@
       daily: { value: "daily", label: "Daily Maximum", minutes: 1440, frameLimit: 5 }
     };
     const PLAYBACK_DAY_CONFIRMATION_INTERVAL = 20;
-    const PLAYBACK_SIMULATED_HOUR_MS = 950;
-    const PLAYBACK_MINIMUM_FRAME_DELAY_MS = 20;
+    const PLAYBACK_FRAME_DURATION_MS = 500;
     const EXPORT_CAPTURE_DELAY_MS = 1;
     const EXPORT_GIF_SPEEDS = {
       slow: { value: "slow", label: "Slow", delayMs: 2000 },

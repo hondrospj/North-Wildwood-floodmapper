@@ -676,6 +676,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         preferCanvas: true
       });
 
+      map.attributionControl?.setPrefix(false);
       map.createPane("basemapGrayPane");
       map.createPane("basemapColorPane");
       map.createPane("satellitePane");
