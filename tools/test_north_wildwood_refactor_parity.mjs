@@ -12,6 +12,14 @@ import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const PLAYBACK_AND_MOBILE_PATH = "tools/fixtures/north-wildwood-20261124-playback-and-mobile.json";
+const priorPlaybackAndMobileSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-playback-and-mobile-snapshot");
+const playbackAndMobileText = fs.readFileSync(localPath(PLAYBACK_AND_MOBILE_PATH));
+assert.equal(hashReleaseBytes(playbackAndMobileText), "042c298e2afb99c68ca122eb2bfcc809f11e630c5729781c396a581a0a21a5f4", "Retain the exact playback and mobile inverse");
+const playbackAndMobile = JSON.parse(playbackAndMobileText);
+assert.equal(playbackAndMobile.schemaVersion, 1);
+assert.equal(playbackAndMobile.baselineCommit, "404bd087b70b575a98a4bdfb86c5182712d49b60");
+const playbackAndMobileFiles = new Map(playbackAndMobile.files.map(entry => [entry.source, entry]));
 const VERIFIED_ELEVATION_CARD_PATH = "tools/fixtures/north-wildwood-20261123-verified-elevation-card.json";
 const priorVerifiedElevationCardSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-verified-elevation-card-snapshot");
 const verifiedElevationCardText = fs.readFileSync(localPath(VERIFIED_ELEVATION_CARD_PATH));
@@ -143,8 +151,17 @@ function restoreReleaseBytes(bytes, entry, scope) {
   return restored;
 }
 
-function readBeforeVerifiedElevationCard(relative) {
+function readBeforePlaybackAndMobile(relative) {
   const bytes = fs.readFileSync(localPath(relative));
+  const entry = playbackAndMobileFiles.get(relative);
+  return priorPlaybackAndMobileSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "playback and mobile");
+}
+if (!priorPlaybackAndMobileSnapshot) {
+  for (const file of playbackAndMobile.files) readBeforePlaybackAndMobile(file.source);
+}
+
+function readBeforeVerifiedElevationCard(relative) {
+  const bytes = readBeforePlaybackAndMobile(relative);
   const entry = verifiedElevationCardFiles.get(relative);
   return priorVerifiedElevationCardSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "verified elevation card");
 }
@@ -2932,6 +2949,7 @@ if (process.argv.includes("--self-test")) {
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
       DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
+      PLAYBACK_AND_MOBILE_PATH, ...playbackAndMobile.files.map(file => file.source),
       VERIFIED_ELEVATION_CARD_PATH, ...verifiedElevationCard.files.map(file => file.source),
       ELEVATION_VERIFICATION_PATH, ...elevationVerification.files.map(file => file.source),
       FRAME_LOADING_PATH, ...frameLoading.files.map(file => file.source),
@@ -2960,7 +2978,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforeVerifiedElevationCard = (args = []) => runRelease(["--prior-verified-elevation-card-snapshot", ...args]);
+    const runBeforePlaybackAndMobile = (args = []) => runRelease(["--prior-playback-and-mobile-snapshot", ...args]);
+    const runBeforeVerifiedElevationCard = (args = []) => runBeforePlaybackAndMobile(["--prior-verified-elevation-card-snapshot", ...args]);
     const runBeforeElevationVerification = (args = []) => runBeforeVerifiedElevationCard(["--prior-elevation-verification-snapshot", ...args]);
     const runBeforeFrameLoading = (args = []) => runBeforeElevationVerification(["--prior-frame-loading-snapshot", ...args]);
     const runBeforeMapperAudit = (args = []) => runBeforeFrameLoading(["--prior-mapper-audit-snapshot", ...args]);
@@ -2991,12 +3010,21 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered playback and mobile inverse", path.join(scratch, PLAYBACK_AND_MOBILE_PATH), Buffer.concat([playbackAndMobileText, Buffer.from(" ")])],
+      ...playbackAndMobile.files.map(file => {
+        const target = path.join(scratch, file.source);
+        return ["unreviewed playback and mobile byte in " + file.source, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of playbackAndMobile.files) fs.writeFileSync(path.join(scratch, file.source), readBeforePlaybackAndMobile(file.source));
+    assert.equal(runBeforePlaybackAndMobile().status, 0, "The restored application before the playback and mobile changes must pass");
+    assertMutationsRejected([
       ["altered verified elevation card inverse", path.join(scratch, VERIFIED_ELEVATION_CARD_PATH), Buffer.concat([verifiedElevationCardText, Buffer.from(" ")])],
       ...verifiedElevationCard.files.map(file => {
         const target = path.join(scratch, file.source);
         return ["unreviewed verified elevation card byte in " + file.source, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
       })
-    ], runRelease);
+    ], runBeforePlaybackAndMobile);
     for (const file of verifiedElevationCard.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeVerifiedElevationCard(file.source));
     assert.equal(runBeforeVerifiedElevationCard().status, 0, "The restored application before verified elevation card must pass");
     assertMutationsRejected([

@@ -1,0 +1,226 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "404bd087b70b575a98a4bdfb86c5182712d49b60",
+  "scope": "Align mobile controls, swap 3D flood frames without fading, cap playback, and remove the Map Credits disclosure.",
+  "files": [
+    {
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSha256": "4322fedf3d56abdb1e3b36ed1867e75736337dda998015daa6c17b323e099522",
+      "afterSha256": "f28e0ac243d0f6fdd678c47879018fb75e54c1f08bd33618ac0a6a04bd2837e2",
+      "edits": [
+        [
+          14217,
+          14417,
+          ""
+        ],
+        [
+          46546,
+          46576,
+          ""
+        ],
+        [
+          50405,
+          50439,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "e80e0e5467ed860b53db4ff216fa420a146fea543eba2201abd5714084262992",
+      "afterSha256": "4f0cf4e21271d29a550c1274fed6ce5d716f077ba8e94e28b7a9de1899554962",
+      "edits": [
+        [
+          4822,
+          4866,
+          "    const PLAYBACK_SIMULATED_HOUR_MS = 950;\n    const PLAYBACK_MINIMUM_FRAME_DELAY_MS = 20;\n"
+        ],
+        [
+          216813,
+          216861,
+          ""
+        ],
+        [
+          538881,
+          538924,
+          "    function getPlaybackCatchUpStep() {\n      const index = getTimelineNavigationIndex();\n      const intervalMinutes = getTimelineIntervalMinutes();\n      if (index !== currentHourIndex || intervalMinutes === 1440) return 1;\n      const entries = currentSeriesHours.slice(index, index + 3);\n      const [current, intermediate, next] = entries;\n      if (!current || !intermediate || !next ||\n          intermediate.observedDate !== current.observedDate || next.observedDate !== current.observedDate) return 1;\n\n      const [startTime, middleTime, endTime] = entries.map(entryTimeMs);\n      const intervalMs = intervalMinutes * 60_000;\n      if (![startTime, middleTime, endTime].every(Number.isFinite) ||\n          middleTime - startTime !== intervalMs || endTime - middleTime !== intervalMs) return 1;\n      const levels = entries.map(getStageValue);\n      if (!levels.every(Number.isFinite)) return 1;\n      const [start, middle, end] = levels;\n      // Always show local highs/lows, category changes, and hydraulic\n      // transitions as individual frames, even if rendering falls behind.\n      if (middle < Math.min(start, end) || middle > Math.max(start, end)) return 1;\n      const category = classifyFloodStage(start);\n      if (levels.some(level => classifyFloodStage(level) !== category)) return 1;\n      const phase = getHydraulicPhaseForEntry(entries[0], index, currentSeriesHours);\n      if (entries.some((entry, offset) =>\n        getHydraulicPhaseForEntry(entry, index + offset, currentSeriesHours) !== phase)) return 1;\n      return 2;\n    }\n\n    async function stepPlaybackForward(catchUp = false) {\n"
+        ],
+        [
+          539242,
+          539290,
+          "        advanced = await stepSeriesBy(catchUp ? getPlaybackCatchUpStep() : 1, step);\n"
+        ],
+        [
+          540021,
+          540100,
+          "      const intervalMinutes = getTimelineIntervalMinutes();\n      if (intervalMinutes === 1440) return PLAYBACK_SIMULATED_HOUR_MS;\n      return PLAYBACK_SIMULATED_HOUR_MS * (intervalMinutes / 60);\n    }\n\nfunction startPlayback() {\n"
+        ],
+        [
+          540492,
+          540549,
+          "      let previousFrameStartedAt = null;\n      let lagMs = 0;\n\n      reschedulePlaybackFrame = () => {\n        previousFrameStartedAt = null;\n        lagMs = 0;\n        scheduleNext?.();\n      };\n"
+        ],
+        [
+          540680,
+          540680,
+          "        const frameStartedAt = performance.now();\n        const frameDurationMs = getPlaybackFrameDurationMs() / playbackSpeedMultiplier;\n        let catchUp = false;\n        if (playbackSpeedMultiplier === 2 && previousFrameStartedAt !== null) {\n          lagMs = Math.min(2 * frameDurationMs,\n            Math.max(0, lagMs + frameStartedAt - previousFrameStartedAt - frameDurationMs));\n          catchUp = lagMs >= frameDurationMs;\n          // Make up at most one overdue reading. Do not carry a burst of\n          // overdue frames after a stalled request or background tab.\n          if (catchUp) lagMs %= frameDurationMs;\n        }\n        previousFrameStartedAt = frameStartedAt;\n"
+        ],
+        [
+          540694,
+          540733,
+          "          if (await stepPlaybackForward(catchUp) === false) {\n            previousFrameStartedAt = null;\n            lagMs = 0;\n          }\n"
+        ],
+        [
+          540983,
+          541035,
+          ""
+        ],
+        [
+          541068,
+          541222,
+          "        // Recalculate the current deadline when the speed changes between frames.\n        // A frame already rendering still finishes before the next one starts.\n"
+        ],
+        [
+          541298,
+          541298,
+          "          const elapsedMs = performance.now() - frameStartedAt;\n"
+        ],
+        [
+          541388,
+          541542,
+          "          const nextFrameDelayMs = Math.max(PLAYBACK_MINIMUM_FRAME_DELAY_MS, frameDurationMs - elapsedMs);\n"
+        ]
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "e73151cd78bac07c89f64e61d5e3d34415b7971ef22d1035ed9f943e06143676",
+      "afterSha256": "6b95ed92285343b7f83bf611ef4981f94e0cfc9d3f45a138d932910f3a540e8e",
+      "edits": [
+        [
+          44346,
+          44347,
+          ""
+        ],
+        [
+          67222,
+          67852,
+          ""
+        ],
+        [
+          79351,
+          79351,
+          "      <details id=\"mapCredits\" class=\"panel-card compact-card\" data-nww-group=\"tools\" data-html2canvas-ignore=\"true\">\n        <summary>Map credits</summary>\n        <div>\n          <div id=\"mapCreditsSources\"></div>\n          <a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\" rel=\"noopener noreferrer\">OpenStreetMap licence</a>\n        </div>\n      </details>\n"
+        ],
+        [
+          110083,
+          110181,
+          "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=e80e0e5467ed860b\"></script>\n"
+        ],
+        [
+          110331,
+          110407,
+          "<script src=\"./assets/3d/north-wildwood-3d.js?v=4322fedf3d56abdb\"></script>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "23d110686eb96c541268f508de5551107f56ea34325bba84ed6118253f8c63fd",
+      "afterSha256": "d9cf9a0c5541295889ecaec49f74d63c791f6dee5a19fc115a23179b9755cc5a",
+      "edits": [
+        [
+          7165,
+          7772,
+          ""
+        ],
+        [
+          20785,
+          20785,
+          "      <details id=\"mapCredits\" class=\"panel-card compact-card\" data-nww-group=\"tools\" data-html2canvas-ignore=\"true\">\n        <summary>Map credits</summary>\n        <div>\n          <div id=\"mapCreditsSources\"></div>\n          <a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\" rel=\"noopener noreferrer\">OpenStreetMap licence</a>\n        </div>\n      </details>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/00-configuration.js",
+      "beforeSha256": "5c490b414d21982241a57e8ab8f0d64e74be7908999b8d2dfb1738af9add5e02",
+      "afterSha256": "9db93de7f04cc8529829a5647efbdb2028cb8e79c1a51c47f3d6f150bc7297da",
+      "edits": [
+        [
+          4822,
+          4866,
+          "    const PLAYBACK_SIMULATED_HOUR_MS = 950;\n    const PLAYBACK_MINIMUM_FRAME_DELAY_MS = 20;\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/10-map-geometry-and-layers.js",
+      "beforeSha256": "49723badd9ab22d3681b2678c0df3d716b411e26b82b7f6e1093729db94fb21b",
+      "afterSha256": "46468145e9d94263fe7fca9567794be71a057af9165ad83ac8b1a206fcc61f4c",
+      "edits": [
+        [
+          27138,
+          27186,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/23-refresh-and-playback.js",
+      "beforeSha256": "2b4a15add03c140f982374e40ea4709be4cdd19536122c6885bdc15b4913f4f5",
+      "afterSha256": "221ff17850cf6ea46b7af0a649eb4d4597f85f1f4fbea0ab02cfc5ee12a3557f",
+      "edits": [
+        [
+          11359,
+          11402,
+          "    function getPlaybackCatchUpStep() {\n      const index = getTimelineNavigationIndex();\n      const intervalMinutes = getTimelineIntervalMinutes();\n      if (index !== currentHourIndex || intervalMinutes === 1440) return 1;\n      const entries = currentSeriesHours.slice(index, index + 3);\n      const [current, intermediate, next] = entries;\n      if (!current || !intermediate || !next ||\n          intermediate.observedDate !== current.observedDate || next.observedDate !== current.observedDate) return 1;\n\n      const [startTime, middleTime, endTime] = entries.map(entryTimeMs);\n      const intervalMs = intervalMinutes * 60_000;\n      if (![startTime, middleTime, endTime].every(Number.isFinite) ||\n          middleTime - startTime !== intervalMs || endTime - middleTime !== intervalMs) return 1;\n      const levels = entries.map(getStageValue);\n      if (!levels.every(Number.isFinite)) return 1;\n      const [start, middle, end] = levels;\n      // Always show local highs/lows, category changes, and hydraulic\n      // transitions as individual frames, even if rendering falls behind.\n      if (middle < Math.min(start, end) || middle > Math.max(start, end)) return 1;\n      const category = classifyFloodStage(start);\n      if (levels.some(level => classifyFloodStage(level) !== category)) return 1;\n      const phase = getHydraulicPhaseForEntry(entries[0], index, currentSeriesHours);\n      if (entries.some((entry, offset) =>\n        getHydraulicPhaseForEntry(entry, index + offset, currentSeriesHours) !== phase)) return 1;\n      return 2;\n    }\n\n    async function stepPlaybackForward(catchUp = false) {\n"
+        ],
+        [
+          11720,
+          11768,
+          "        advanced = await stepSeriesBy(catchUp ? getPlaybackCatchUpStep() : 1, step);\n"
+        ],
+        [
+          12499,
+          12578,
+          "      const intervalMinutes = getTimelineIntervalMinutes();\n      if (intervalMinutes === 1440) return PLAYBACK_SIMULATED_HOUR_MS;\n      return PLAYBACK_SIMULATED_HOUR_MS * (intervalMinutes / 60);\n    }\n\nfunction startPlayback() {\n"
+        ],
+        [
+          12970,
+          13027,
+          "      let previousFrameStartedAt = null;\n      let lagMs = 0;\n\n      reschedulePlaybackFrame = () => {\n        previousFrameStartedAt = null;\n        lagMs = 0;\n        scheduleNext?.();\n      };\n"
+        ],
+        [
+          13158,
+          13158,
+          "        const frameStartedAt = performance.now();\n        const frameDurationMs = getPlaybackFrameDurationMs() / playbackSpeedMultiplier;\n        let catchUp = false;\n        if (playbackSpeedMultiplier === 2 && previousFrameStartedAt !== null) {\n          lagMs = Math.min(2 * frameDurationMs,\n            Math.max(0, lagMs + frameStartedAt - previousFrameStartedAt - frameDurationMs));\n          catchUp = lagMs >= frameDurationMs;\n          // Make up at most one overdue reading. Do not carry a burst of\n          // overdue frames after a stalled request or background tab.\n          if (catchUp) lagMs %= frameDurationMs;\n        }\n        previousFrameStartedAt = frameStartedAt;\n"
+        ],
+        [
+          13172,
+          13211,
+          "          if (await stepPlaybackForward(catchUp) === false) {\n            previousFrameStartedAt = null;\n            lagMs = 0;\n          }\n"
+        ],
+        [
+          13461,
+          13513,
+          ""
+        ],
+        [
+          13546,
+          13700,
+          "        // Recalculate the current deadline when the speed changes between frames.\n        // A frame already rendering still finishes before the next one starts.\n"
+        ],
+        [
+          13776,
+          13776,
+          "          const elapsedMs = performance.now() - frameStartedAt;\n"
+        ],
+        [
+          13866,
+          14020,
+          "          const nextFrameDelayMs = Math.max(PLAYBACK_MINIMUM_FRAME_DELAY_MS, frameDurationMs - elapsedMs);\n"
+        ]
+      ]
+    }
+  ]
+}
