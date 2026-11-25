@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "c4ff304c61881f3f080d7f4c5992c0fcfaf0f180",
+  "files": [
+    {
+      "source": "index.html",
+      "beforeSha256": "c503b183be8a83b5e48a52d887b4265c254b65c5c8929dba30b45179cb76d09a",
+      "afterSha256": "698d2e814ae471302c597b063ad8da9bd236f84990e63d0bbb438e5a8b73beb9",
+      "edits": [
+        [
+          105717,
+          105733,
+          "d5b5e230834b22cc"
+        ]
+      ]
+    },
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "d5b5e230834b22cc72fdf3156b69dde6243e876e425706d8f615df93e74f57f9",
+      "afterSha256": "8efb36014325141a1c7a00bb4e203403f9307e3f2e9972ee75794397d5f2c47b",
+      "edits": [
+        [
+          412730,
+          412730,
+          "      if (Math.abs(rawStage - matchedStage) > 0.0001) {\n        notes.push(`The displayed water level stays exact, but the called raster is rounded down to the nearest published overlay at ${matchedStage.toFixed(1)} ft NAVD88.`);\n      }\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/18-flood-frame-rendering.js",
+      "beforeSha256": "4e1f915780ea89a47a5d60bc088b75d3b588ebbac1bf0126e50622b4631e91c1",
+      "afterSha256": "17c368dacdc7ebf4c17ab6ddb33bbcb212c7e7d8f4210bfd8e2052af8c553c90",
+      "edits": [
+        [
+          22627,
+          22627,
+          "      if (Math.abs(rawStage - matchedStage) > 0.0001) {\n        notes.push(`The displayed water level stays exact, but the called raster is rounded down to the nearest published overlay at ${matchedStage.toFixed(1)} ft NAVD88.`);\n      }\n"
+        ]
+      ]
+    }
+  ]
+}

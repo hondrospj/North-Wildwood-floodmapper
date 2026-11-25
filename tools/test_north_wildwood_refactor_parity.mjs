@@ -12,6 +12,14 @@ import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const RASTER_ROUNDING_PATH = "tools/fixtures/north-wildwood-20261125-raster-rounding-notice.json";
+const priorRasterRoundingSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-raster-rounding-snapshot");
+const rasterRoundingText = fs.readFileSync(localPath(RASTER_ROUNDING_PATH));
+assert.equal(hashReleaseBytes(rasterRoundingText), "c759de2acc35bf6bdfd21d4b4b6b8528fecce20f03fdc02e0b5278cafd57275b", "Retain the exact raster rounding notice inverse");
+const rasterRounding = JSON.parse(rasterRoundingText);
+assert.equal(rasterRounding.schemaVersion, 1);
+assert.equal(rasterRounding.baselineCommit, "c4ff304c61881f3f080d7f4c5992c0fcfaf0f180");
+const rasterRoundingFiles = new Map(rasterRounding.files.map(entry => [entry.source, entry]));
 const RUNTIME_AUDIT_PATH = "tools/fixtures/north-wildwood-20261122-runtime-audit.json";
 const priorRuntimeAudit = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-runtime-audit-snapshot");
 const runtimeAuditText = fs.readFileSync(localPath(RUNTIME_AUDIT_PATH));
@@ -47,8 +55,17 @@ function restoreReleaseBytes(bytes, entry, scope) {
   return restored;
 }
 
-function readBeforeRuntimeAudit(relative) {
+function readBeforeRasterRounding(relative) {
   const bytes = fs.readFileSync(localPath(relative));
+  const entry = rasterRoundingFiles.get(relative);
+  return priorRasterRoundingSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "raster rounding notice");
+}
+if (!priorRasterRoundingSnapshot) {
+  for (const file of rasterRounding.files) readBeforeRasterRounding(file.source);
+}
+
+function readBeforeRuntimeAudit(relative) {
+  const bytes = readBeforeRasterRounding(relative);
   const entry = runtimeAuditFiles.get(relative);
   return priorRuntimeAudit || !entry ? bytes : restoreReleaseBytes(bytes, entry, "runtime audit");
 }
@@ -2728,6 +2745,7 @@ if (process.argv.includes("--self-test")) {
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
       DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
+      RASTER_ROUNDING_PATH, ...rasterRounding.files.map(file => file.source),
       RUNTIME_AUDIT_PATH, ...runtimeAudit.files.map(file => file.source),
       QUIET_LOADING_PATH, ...quietLoading.files.map(file => file.source),
       MAPPER_FIX_PATH, ...mapperFix.files.map(file => file.source),
@@ -2744,7 +2762,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforeRuntimeAudit = (args = []) => runRelease(["--prior-runtime-audit-snapshot", ...args]);
+    const runBeforeRasterRounding = (args = []) => runRelease(["--prior-raster-rounding-snapshot", ...args]);
+    const runBeforeRuntimeAudit = (args = []) => runBeforeRasterRounding(["--prior-runtime-audit-snapshot", ...args]);
     const runBeforeDataDelivery = (args = []) => runBeforeRuntimeAudit(["--prior-data-delivery-snapshot", ...args]);
     const runBeforeFirstMapPaint = (args = []) => runBeforeDataDelivery(["--prior-first-map-paint-snapshot", ...args]);
     const runCurrent = (args = []) => runBeforeFirstMapPaint(["--prior-shared-app-snapshot", ...args]);
@@ -2763,12 +2782,21 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered raster rounding inverse", path.join(scratch, RASTER_ROUNDING_PATH), Buffer.concat([rasterRoundingText, Buffer.from(" ")])],
+      ...rasterRounding.files.map(file => {
+        const target = path.join(scratch, file.source);
+        return ["unreviewed raster rounding byte in " + file.source, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of rasterRounding.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeRasterRounding(file.source));
+    assert.equal(runBeforeRasterRounding().status, 0, "The mapper before removing the raster rounding notice must pass");
+    assertMutationsRejected([
       ["altered runtime audit inverse", path.join(scratch, RUNTIME_AUDIT_PATH), Buffer.concat([runtimeAuditText, Buffer.from(" ")])],
       ...runtimeAudit.files.map(file => {
         const target = path.join(scratch, file.source);
         return [`unreviewed runtime audit byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
       })
-    ], runRelease);
+    ], runBeforeRasterRounding);
     for (const file of runtimeAudit.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeRuntimeAudit(file.source));
     assert.equal(runBeforeRuntimeAudit().status, 0, "The restored application before the runtime audit must pass");
     assertMutationsRejected([
