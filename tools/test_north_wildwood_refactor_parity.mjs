@@ -12,6 +12,14 @@ import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const RASTER_ROUNDING_PATH = "tools/fixtures/north-wildwood-20261125-raster-rounding-notice.json";
+const priorRasterRoundingSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-raster-rounding-snapshot");
+const rasterRoundingText = fs.readFileSync(localPath(RASTER_ROUNDING_PATH));
+assert.equal(hashReleaseBytes(rasterRoundingText), "7982c6c15803e6c63273e06d2892d4b6b7a739968117c83de02bfbe1fe097bc6", "Retain the exact raster rounding notice inverse");
+const rasterRounding = JSON.parse(rasterRoundingText);
+assert.equal(rasterRounding.schemaVersion, 1);
+assert.equal(rasterRounding.baselineCommit, "4c52984ef609bd5353975e901f5d60d709f8f690");
+const rasterRoundingFiles = new Map(rasterRounding.files.map(entry => [entry.source, entry]));
 const PLAYBACK_AND_MOBILE_PATH = "tools/fixtures/north-wildwood-20261124-playback-and-mobile.json";
 const priorPlaybackAndMobileSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-playback-and-mobile-snapshot");
 const playbackAndMobileText = fs.readFileSync(localPath(PLAYBACK_AND_MOBILE_PATH));
@@ -151,8 +159,17 @@ function restoreReleaseBytes(bytes, entry, scope) {
   return restored;
 }
 
-function readBeforePlaybackAndMobile(relative) {
+function readBeforeRasterRounding(relative) {
   const bytes = fs.readFileSync(localPath(relative));
+  const entry = rasterRoundingFiles.get(relative);
+  return priorRasterRoundingSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "raster rounding notice");
+}
+if (!priorRasterRoundingSnapshot) {
+  for (const file of rasterRounding.files) readBeforeRasterRounding(file.source);
+}
+
+function readBeforePlaybackAndMobile(relative) {
+  const bytes = readBeforeRasterRounding(relative);
   const entry = playbackAndMobileFiles.get(relative);
   return priorPlaybackAndMobileSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "playback and mobile");
 }
@@ -2949,6 +2966,7 @@ if (process.argv.includes("--self-test")) {
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
       DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
+      RASTER_ROUNDING_PATH, ...rasterRounding.files.map(file => file.source),
       PLAYBACK_AND_MOBILE_PATH, ...playbackAndMobile.files.map(file => file.source),
       VERIFIED_ELEVATION_CARD_PATH, ...verifiedElevationCard.files.map(file => file.source),
       ELEVATION_VERIFICATION_PATH, ...elevationVerification.files.map(file => file.source),
@@ -2978,7 +2996,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforePlaybackAndMobile = (args = []) => runRelease(["--prior-playback-and-mobile-snapshot", ...args]);
+    const runBeforeRasterRounding = (args = []) => runRelease(["--prior-raster-rounding-snapshot", ...args]);
+    const runBeforePlaybackAndMobile = (args = []) => runBeforeRasterRounding(["--prior-playback-and-mobile-snapshot", ...args]);
     const runBeforeVerifiedElevationCard = (args = []) => runBeforePlaybackAndMobile(["--prior-verified-elevation-card-snapshot", ...args]);
     const runBeforeElevationVerification = (args = []) => runBeforeVerifiedElevationCard(["--prior-elevation-verification-snapshot", ...args]);
     const runBeforeFrameLoading = (args = []) => runBeforeElevationVerification(["--prior-frame-loading-snapshot", ...args]);
@@ -3010,12 +3029,21 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered raster rounding inverse", path.join(scratch, RASTER_ROUNDING_PATH), Buffer.concat([rasterRoundingText, Buffer.from(" ")])],
+      ...rasterRounding.files.map(file => {
+        const target = path.join(scratch, file.source);
+        return ["unreviewed raster rounding byte in " + file.source, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of rasterRounding.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeRasterRounding(file.source));
+    assert.equal(runBeforeRasterRounding().status, 0, "The mapper before removing the raster rounding notice must pass");
+    assertMutationsRejected([
       ["altered playback and mobile inverse", path.join(scratch, PLAYBACK_AND_MOBILE_PATH), Buffer.concat([playbackAndMobileText, Buffer.from(" ")])],
       ...playbackAndMobile.files.map(file => {
         const target = path.join(scratch, file.source);
         return ["unreviewed playback and mobile byte in " + file.source, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
       })
-    ], runRelease);
+    ], runBeforeRasterRounding);
     for (const file of playbackAndMobile.files) fs.writeFileSync(path.join(scratch, file.source), readBeforePlaybackAndMobile(file.source));
     assert.equal(runBeforePlaybackAndMobile().status, 0, "The restored application before the playback and mobile changes must pass");
     assertMutationsRejected([
