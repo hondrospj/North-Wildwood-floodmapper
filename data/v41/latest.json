@@ -2,10 +2,10 @@
   "status": "passed",
   "experimental": true,
   "title": "North Wildwood V41 Experimental Hydrograph",
-  "issue_utc": "2026-11-26T18:00:00+00:00",
-  "first_valid_utc": "2026-11-26T19:00:00+00:00",
-  "last_valid_utc": "2026-12-02T18:00:00+00:00",
-  "forecast_hours": 144,
+  "issue_utc": "2026-11-27T00:00:00+00:00",
+  "first_valid_utc": "2026-11-27T01:00:00+00:00",
+  "last_valid_utc": "2026-12-12T00:00:00+00:00",
+  "forecast_hours": 360,
   "weather_paths": 103,
   "proxy_label": "Frozen Stone Harbor V41 proxy (USGS 01411360)",
   "datum": "North Wildwood project MLLW",
@@ -14,12 +14,12 @@
   "csv_url": "latest.csv",
   "files": {
     "latest.png": {
-      "sha256": "f4f2e248ee91832daf12b6557718a2951afa8c809ea7d290e23c85f3fbeb1249",
-      "bytes": 733713
+      "sha256": "a7534b4cf3ab70712ffd0aa57c9c7861832b329987a167e1d84a1912474e08ae",
+      "bytes": 894696
     },
     "latest.csv": {
-      "sha256": "ca04654ee75fff81eedfda1de741336d5530ecd6a91cc7dd1996377bc8cd5be0",
-      "bytes": 22477
+      "sha256": "63b815e66e5f91dcff07524a96b77f2a6a8e9f00acdf2c1e84b81ef00677263f",
+      "bytes": 56046
     }
   },
   "statistics": [
@@ -37,18 +37,18 @@
     "schema": "north-wildwood-v41-map-forecast-v1",
     "sourceType": "SHORELYSAFE_V41_WEIGHTED_ECMWF_103_PATHS",
     "sourceUrl": "https://raw.githubusercontent.com/hondrospj/North-Wildwood-floodmapper/main/data/v41/latest.csv",
-    "sourceCsvSha256": "ca04654ee75fff81eedfda1de741336d5530ecd6a91cc7dd1996377bc8cd5be0",
+    "sourceCsvSha256": "63b815e66e5f91dcff07524a96b77f2a6a8e9f00acdf2c1e84b81ef00677263f",
     "experimental": true,
     "gaugeName": "Stone Harbor proxy for North Wildwood",
     "stationId": "8535581",
     "usgsGaugeId": "01411360",
     "weatherPaths": 103,
     "documentedEvaluationLeadHours": 96,
-    "sourceCycleUtc": "2026-11-26T18:00:00Z",
-    "petssCycleUtc": "2026-11-26T18:00:00Z",
-    "issuedUtc": "2026-11-27T01:27:12Z",
-    "forecastStartUtc": "2026-11-27T02:00:00Z",
-    "forecastEndUtc": "2026-12-01T02:00:00Z",
+    "sourceCycleUtc": "2026-11-27T00:00:00Z",
+    "petssCycleUtc": "2026-11-27T00:00:00Z",
+    "issuedUtc": "2026-11-27T08:01:12Z",
+    "forecastStartUtc": "2026-11-27T09:00:00Z",
+    "forecastEndUtc": "2026-12-01T09:00:00Z",
     "sourceDatum": "MLLW",
     "mapDatum": "NAVD88",
     "navd88OffsetFromMllwFt": -2.66,
@@ -58,489 +58,489 @@
         "product": "mean",
         "hours": [
           {
-            "timeUtc": "2026-11-27T02:00:00Z",
-            "navd88StageFt": 4.324783129,
-            "mllwStageFt": 6.984783129
-          },
-          {
-            "timeUtc": "2026-11-27T03:00:00Z",
-            "navd88StageFt": 4.42,
-            "mllwStageFt": 7.08
-          },
-          {
-            "timeUtc": "2026-11-27T04:00:00Z",
-            "navd88StageFt": 4.126915172,
-            "mllwStageFt": 6.786915172
-          },
-          {
-            "timeUtc": "2026-11-27T05:00:00Z",
-            "navd88StageFt": 3.374684702,
-            "mllwStageFt": 6.034684702
-          },
-          {
-            "timeUtc": "2026-11-27T06:00:00Z",
-            "navd88StageFt": 2.306589732,
-            "mllwStageFt": 4.966589732
-          },
-          {
-            "timeUtc": "2026-11-27T07:00:00Z",
-            "navd88StageFt": 1.222004319,
-            "mllwStageFt": 3.882004319
-          },
-          {
-            "timeUtc": "2026-11-27T08:00:00Z",
-            "navd88StageFt": 0.263879771,
-            "mllwStageFt": 2.923879771
-          },
-          {
             "timeUtc": "2026-11-27T09:00:00Z",
-            "navd88StageFt": -0.336749603,
-            "mllwStageFt": 2.323250397
+            "navd88StageFt": -0.160848267,
+            "mllwStageFt": 2.499151733
           },
           {
             "timeUtc": "2026-11-27T10:00:00Z",
-            "navd88StageFt": -0.117256697,
-            "mllwStageFt": 2.542743303
+            "navd88StageFt": 0.063393657,
+            "mllwStageFt": 2.723393657
           },
           {
             "timeUtc": "2026-11-27T11:00:00Z",
-            "navd88StageFt": 0.704167626,
-            "mllwStageFt": 3.364167626
+            "navd88StageFt": 0.898102421,
+            "mllwStageFt": 3.558102421
           },
           {
             "timeUtc": "2026-11-27T12:00:00Z",
-            "navd88StageFt": 1.790697905,
-            "mllwStageFt": 4.450697905
+            "navd88StageFt": 1.968962328,
+            "mllwStageFt": 4.628962328
           },
           {
             "timeUtc": "2026-11-27T13:00:00Z",
-            "navd88StageFt": 2.80060494,
-            "mllwStageFt": 5.46060494
+            "navd88StageFt": 2.939307496,
+            "mllwStageFt": 5.599307496
           },
           {
             "timeUtc": "2026-11-27T14:00:00Z",
-            "navd88StageFt": 3.545243777,
-            "mllwStageFt": 6.205243777
+            "navd88StageFt": 3.665589072,
+            "mllwStageFt": 6.325589072
           },
           {
             "timeUtc": "2026-11-27T15:00:00Z",
-            "navd88StageFt": 3.938200254,
-            "mllwStageFt": 6.598200254
+            "navd88StageFt": 4.030635393,
+            "mllwStageFt": 6.690635393
           },
           {
             "timeUtc": "2026-11-27T16:00:00Z",
-            "navd88StageFt": 3.84690922,
-            "mllwStageFt": 6.50690922
+            "navd88StageFt": 3.971674239,
+            "mllwStageFt": 6.631674239
           },
           {
             "timeUtc": "2026-11-27T17:00:00Z",
-            "navd88StageFt": 3.119336346,
-            "mllwStageFt": 5.779336346
+            "navd88StageFt": 3.240126473,
+            "mllwStageFt": 5.900126473
           },
           {
             "timeUtc": "2026-11-27T18:00:00Z",
-            "navd88StageFt": 2.056918962,
-            "mllwStageFt": 4.716918962
+            "navd88StageFt": 2.180334585,
+            "mllwStageFt": 4.840334585
           },
           {
             "timeUtc": "2026-11-27T19:00:00Z",
-            "navd88StageFt": 0.651289356,
-            "mllwStageFt": 3.311289356
+            "navd88StageFt": 0.780206371,
+            "mllwStageFt": 3.440206371
           },
           {
             "timeUtc": "2026-11-27T20:00:00Z",
-            "navd88StageFt": -0.725630349,
-            "mllwStageFt": 1.934369651
+            "navd88StageFt": -0.588087272,
+            "mllwStageFt": 2.071912728
           },
           {
             "timeUtc": "2026-11-27T21:00:00Z",
-            "navd88StageFt": -1.913862594,
-            "mllwStageFt": 0.746137406
+            "navd88StageFt": -1.752825067,
+            "mllwStageFt": 0.907174933
           },
           {
             "timeUtc": "2026-11-27T22:00:00Z",
-            "navd88StageFt": -2.37337924,
-            "mllwStageFt": 0.28662076
+            "navd88StageFt": -2.235536745,
+            "mllwStageFt": 0.424463255
           },
           {
             "timeUtc": "2026-11-27T23:00:00Z",
-            "navd88StageFt": -1.999868511,
-            "mllwStageFt": 0.660131489
+            "navd88StageFt": -1.862396451,
+            "mllwStageFt": 0.797603549
           },
           {
             "timeUtc": "2026-11-28T00:00:00Z",
-            "navd88StageFt": -1.192238695,
-            "mllwStageFt": 1.467761305
+            "navd88StageFt": -1.046606944,
+            "mllwStageFt": 1.613393056
           },
           {
             "timeUtc": "2026-11-28T01:00:00Z",
-            "navd88StageFt": -0.316962365,
-            "mllwStageFt": 2.343037635
+            "navd88StageFt": -0.170345015,
+            "mllwStageFt": 2.489654985
           },
           {
             "timeUtc": "2026-11-28T02:00:00Z",
-            "navd88StageFt": 0.532541867,
-            "mllwStageFt": 3.192541867
+            "navd88StageFt": 0.697666176,
+            "mllwStageFt": 3.357666176
           },
           {
             "timeUtc": "2026-11-28T03:00:00Z",
-            "navd88StageFt": 1.11208534,
-            "mllwStageFt": 3.77208534
+            "navd88StageFt": 1.282012604,
+            "mllwStageFt": 3.942012604
           },
           {
             "timeUtc": "2026-11-28T04:00:00Z",
-            "navd88StageFt": 1.238683367,
-            "mllwStageFt": 3.898683367
+            "navd88StageFt": 1.398622578,
+            "mllwStageFt": 4.058622578
           },
           {
             "timeUtc": "2026-11-28T05:00:00Z",
-            "navd88StageFt": 0.854101352,
-            "mllwStageFt": 3.514101352
+            "navd88StageFt": 1.016093619,
+            "mllwStageFt": 3.676093619
           },
           {
             "timeUtc": "2026-11-28T06:00:00Z",
-            "navd88StageFt": 0.074425057,
-            "mllwStageFt": 2.734425057
+            "navd88StageFt": 0.230330051,
+            "mllwStageFt": 2.890330051
           },
           {
             "timeUtc": "2026-11-28T07:00:00Z",
-            "navd88StageFt": -0.793680685,
-            "mllwStageFt": 1.866319315
+            "navd88StageFt": -0.624592231,
+            "mllwStageFt": 2.035407769
           },
           {
             "timeUtc": "2026-11-28T08:00:00Z",
-            "navd88StageFt": -1.635077366,
-            "mllwStageFt": 1.024922634
+            "navd88StageFt": -1.479746437,
+            "mllwStageFt": 1.180253563
           },
           {
             "timeUtc": "2026-11-28T09:00:00Z",
-            "navd88StageFt": -2.324208836,
-            "mllwStageFt": 0.335791164
+            "navd88StageFt": -2.179549831,
+            "mllwStageFt": 0.480450169
           },
           {
             "timeUtc": "2026-11-28T10:00:00Z",
-            "navd88StageFt": -2.46406378,
-            "mllwStageFt": 0.19593622
+            "navd88StageFt": -2.327991161,
+            "mllwStageFt": 0.332008839
           },
           {
             "timeUtc": "2026-11-28T11:00:00Z",
-            "navd88StageFt": -1.745901113,
-            "mllwStageFt": 0.914098887
+            "navd88StageFt": -1.616179142,
+            "mllwStageFt": 1.043820858
           },
           {
             "timeUtc": "2026-11-28T12:00:00Z",
-            "navd88StageFt": -0.661400507,
-            "mllwStageFt": 1.998599493
+            "navd88StageFt": -0.517681985,
+            "mllwStageFt": 2.142318015
           },
           {
             "timeUtc": "2026-11-28T13:00:00Z",
-            "navd88StageFt": 0.498567462,
-            "mllwStageFt": 3.158567462
+            "navd88StageFt": 0.634895635,
+            "mllwStageFt": 3.294895635
           },
           {
             "timeUtc": "2026-11-28T14:00:00Z",
-            "navd88StageFt": 1.570313243,
-            "mllwStageFt": 4.230313243
+            "navd88StageFt": 1.714159856,
+            "mllwStageFt": 4.374159856
           },
           {
             "timeUtc": "2026-11-28T15:00:00Z",
-            "navd88StageFt": 2.338991511,
-            "mllwStageFt": 4.998991511
+            "navd88StageFt": 2.489177012,
+            "mllwStageFt": 5.149177012
           },
           {
             "timeUtc": "2026-11-28T16:00:00Z",
-            "navd88StageFt": 2.663340458,
-            "mllwStageFt": 5.323340458
+            "navd88StageFt": 2.78613595,
+            "mllwStageFt": 5.44613595
           },
           {
             "timeUtc": "2026-11-28T17:00:00Z",
-            "navd88StageFt": 2.493284282,
-            "mllwStageFt": 5.153284282
+            "navd88StageFt": 2.599051868,
+            "mllwStageFt": 5.259051868
           },
           {
             "timeUtc": "2026-11-28T18:00:00Z",
-            "navd88StageFt": 1.663782418,
-            "mllwStageFt": 4.323782418
+            "navd88StageFt": 1.775547923,
+            "mllwStageFt": 4.435547923
           },
           {
             "timeUtc": "2026-11-28T19:00:00Z",
-            "navd88StageFt": 0.624466738,
-            "mllwStageFt": 3.284466738
+            "navd88StageFt": 0.748888625,
+            "mllwStageFt": 3.408888625
           },
           {
             "timeUtc": "2026-11-28T20:00:00Z",
-            "navd88StageFt": -0.546192256,
-            "mllwStageFt": 2.113807744
+            "navd88StageFt": -0.430895218,
+            "mllwStageFt": 2.229104782
           },
           {
             "timeUtc": "2026-11-28T21:00:00Z",
-            "navd88StageFt": -1.744840524,
-            "mllwStageFt": 0.915159476
+            "navd88StageFt": -1.639671047,
+            "mllwStageFt": 1.020328953
           },
           {
             "timeUtc": "2026-11-28T22:00:00Z",
-            "navd88StageFt": -2.601355673,
-            "mllwStageFt": 0.058644327
+            "navd88StageFt": -2.49124904,
+            "mllwStageFt": 0.16875096
           },
           {
             "timeUtc": "2026-11-28T23:00:00Z",
-            "navd88StageFt": -2.784987987,
-            "mllwStageFt": -0.124987987
+            "navd88StageFt": -2.679724322,
+            "mllwStageFt": -0.019724322
           },
           {
             "timeUtc": "2026-11-29T00:00:00Z",
-            "navd88StageFt": -2.131894076,
-            "mllwStageFt": 0.528105924
+            "navd88StageFt": -2.017082081,
+            "mllwStageFt": 0.642917919
           },
           {
             "timeUtc": "2026-11-29T01:00:00Z",
-            "navd88StageFt": -1.226594023,
-            "mllwStageFt": 1.433405977
+            "navd88StageFt": -1.08952883,
+            "mllwStageFt": 1.57047117
           },
           {
             "timeUtc": "2026-11-29T02:00:00Z",
-            "navd88StageFt": -0.314736191,
-            "mllwStageFt": 2.345263809
+            "navd88StageFt": -0.188931718,
+            "mllwStageFt": 2.471068282
           },
           {
             "timeUtc": "2026-11-29T03:00:00Z",
-            "navd88StageFt": 0.568642292,
-            "mllwStageFt": 3.228642292
+            "navd88StageFt": 0.693755952,
+            "mllwStageFt": 3.353755952
           },
           {
             "timeUtc": "2026-11-29T04:00:00Z",
-            "navd88StageFt": 1.126977333,
-            "mllwStageFt": 3.786977333
+            "navd88StageFt": 1.219430343,
+            "mllwStageFt": 3.879430343
           },
           {
             "timeUtc": "2026-11-29T05:00:00Z",
-            "navd88StageFt": 1.12772991,
-            "mllwStageFt": 3.78772991
+            "navd88StageFt": 1.248335555,
+            "mllwStageFt": 3.908335555
           },
           {
             "timeUtc": "2026-11-29T06:00:00Z",
-            "navd88StageFt": 0.537555575,
-            "mllwStageFt": 3.197555575
+            "navd88StageFt": 0.643519922,
+            "mllwStageFt": 3.303519922
           },
           {
             "timeUtc": "2026-11-29T07:00:00Z",
-            "navd88StageFt": -0.236143203,
-            "mllwStageFt": 2.423856797
+            "navd88StageFt": -0.141590824,
+            "mllwStageFt": 2.518409176
           },
           {
             "timeUtc": "2026-11-29T08:00:00Z",
-            "navd88StageFt": -1.108920862,
-            "mllwStageFt": 1.551079138
+            "navd88StageFt": -0.998455825,
+            "mllwStageFt": 1.661544175
           },
           {
             "timeUtc": "2026-11-29T09:00:00Z",
-            "navd88StageFt": -1.978650088,
-            "mllwStageFt": 0.681349912
+            "navd88StageFt": -1.877371264,
+            "mllwStageFt": 0.782628736
           },
           {
             "timeUtc": "2026-11-29T10:00:00Z",
-            "navd88StageFt": -2.578053665,
-            "mllwStageFt": 0.081946335
+            "navd88StageFt": -2.482955377,
+            "mllwStageFt": 0.177044623
           },
           {
             "timeUtc": "2026-11-29T11:00:00Z",
-            "navd88StageFt": -2.553547761,
-            "mllwStageFt": 0.106452239
+            "navd88StageFt": -2.449229797,
+            "mllwStageFt": 0.210770203
           },
           {
             "timeUtc": "2026-11-29T12:00:00Z",
-            "navd88StageFt": -1.756339708,
-            "mllwStageFt": 0.903660292
+            "navd88StageFt": -1.647568706,
+            "mllwStageFt": 1.012431294
           },
           {
             "timeUtc": "2026-11-29T13:00:00Z",
-            "navd88StageFt": -0.747268138,
-            "mllwStageFt": 1.912731862
+            "navd88StageFt": -0.635170107,
+            "mllwStageFt": 2.024829893
           },
           {
             "timeUtc": "2026-11-29T14:00:00Z",
-            "navd88StageFt": 0.314596374,
-            "mllwStageFt": 2.974596374
+            "navd88StageFt": 0.419437857,
+            "mllwStageFt": 3.079437857
           },
           {
             "timeUtc": "2026-11-29T15:00:00Z",
-            "navd88StageFt": 1.397889757,
-            "mllwStageFt": 4.057889757
+            "navd88StageFt": 1.520754284,
+            "mllwStageFt": 4.180754284
           },
           {
             "timeUtc": "2026-11-29T16:00:00Z",
-            "navd88StageFt": 2.196785062,
-            "mllwStageFt": 4.856785062
+            "navd88StageFt": 2.321317834,
+            "mllwStageFt": 4.981317834
           },
           {
             "timeUtc": "2026-11-29T17:00:00Z",
-            "navd88StageFt": 2.520050031,
-            "mllwStageFt": 5.180050031
+            "navd88StageFt": 2.650677401,
+            "mllwStageFt": 5.310677401
           },
           {
             "timeUtc": "2026-11-29T18:00:00Z",
-            "navd88StageFt": 2.253027735,
-            "mllwStageFt": 4.913027735
+            "navd88StageFt": 2.392771672,
+            "mllwStageFt": 5.052771672
           },
           {
             "timeUtc": "2026-11-29T19:00:00Z",
-            "navd88StageFt": 1.514900476,
-            "mllwStageFt": 4.174900476
+            "navd88StageFt": 1.66046105,
+            "mllwStageFt": 4.32046105
           },
           {
             "timeUtc": "2026-11-29T20:00:00Z",
-            "navd88StageFt": 0.552353845,
-            "mllwStageFt": 3.212353845
+            "navd88StageFt": 0.704553065,
+            "mllwStageFt": 3.364553065
           },
           {
             "timeUtc": "2026-11-29T21:00:00Z",
-            "navd88StageFt": -0.49327107,
-            "mllwStageFt": 2.16672893
+            "navd88StageFt": -0.343749316,
+            "mllwStageFt": 2.316250684
           },
           {
             "timeUtc": "2026-11-29T22:00:00Z",
-            "navd88StageFt": -1.483634068,
-            "mllwStageFt": 1.176365932
+            "navd88StageFt": -1.350143567,
+            "mllwStageFt": 1.309856433
           },
           {
             "timeUtc": "2026-11-29T23:00:00Z",
-            "navd88StageFt": -2.160925942,
-            "mllwStageFt": 0.499074058
+            "navd88StageFt": -2.026810752,
+            "mllwStageFt": 0.633189248
           },
           {
             "timeUtc": "2026-11-30T00:00:00Z",
-            "navd88StageFt": -2.116824374,
-            "mllwStageFt": 0.543175626
+            "navd88StageFt": -1.969556214,
+            "mllwStageFt": 0.690443786
           },
           {
             "timeUtc": "2026-11-30T01:00:00Z",
-            "navd88StageFt": -1.379875608,
-            "mllwStageFt": 1.280124392
+            "navd88StageFt": -1.231609986,
+            "mllwStageFt": 1.428390014
           },
           {
             "timeUtc": "2026-11-30T02:00:00Z",
-            "navd88StageFt": -0.431641541,
-            "mllwStageFt": 2.228358459
+            "navd88StageFt": -0.300301082,
+            "mllwStageFt": 2.359698918
           },
           {
             "timeUtc": "2026-11-30T03:00:00Z",
-            "navd88StageFt": 0.529065167,
-            "mllwStageFt": 3.189065167
+            "navd88StageFt": 0.683044788,
+            "mllwStageFt": 3.343044788
           },
           {
             "timeUtc": "2026-11-30T04:00:00Z",
-            "navd88StageFt": 1.38505988,
-            "mllwStageFt": 4.04505988
+            "navd88StageFt": 1.551998831,
+            "mllwStageFt": 4.211998831
           },
           {
             "timeUtc": "2026-11-30T05:00:00Z",
-            "navd88StageFt": 1.904568333,
-            "mllwStageFt": 4.564568333
+            "navd88StageFt": 2.066257273,
+            "mllwStageFt": 4.726257273
           },
           {
             "timeUtc": "2026-11-30T06:00:00Z",
-            "navd88StageFt": 1.904703424,
-            "mllwStageFt": 4.564703424
+            "navd88StageFt": 2.0779839,
+            "mllwStageFt": 4.7379839
           },
           {
             "timeUtc": "2026-11-30T07:00:00Z",
-            "navd88StageFt": 1.447991691,
-            "mllwStageFt": 4.107991691
+            "navd88StageFt": 1.643229506,
+            "mllwStageFt": 4.303229506
           },
           {
             "timeUtc": "2026-11-30T08:00:00Z",
-            "navd88StageFt": 0.695466251,
-            "mllwStageFt": 3.355466251
+            "navd88StageFt": 0.899266814,
+            "mllwStageFt": 3.559266814
           },
           {
             "timeUtc": "2026-11-30T09:00:00Z",
-            "navd88StageFt": -0.146167697,
-            "mllwStageFt": 2.513832303
+            "navd88StageFt": 0.053360317,
+            "mllwStageFt": 2.713360317
           },
           {
             "timeUtc": "2026-11-30T10:00:00Z",
-            "navd88StageFt": -0.978533111,
-            "mllwStageFt": 1.681466889
+            "navd88StageFt": -0.782631187,
+            "mllwStageFt": 1.877368813
           },
           {
             "timeUtc": "2026-11-30T11:00:00Z",
-            "navd88StageFt": -1.542316806,
-            "mllwStageFt": 1.117683194
+            "navd88StageFt": -1.360139302,
+            "mllwStageFt": 1.299860698
           },
           {
             "timeUtc": "2026-11-30T12:00:00Z",
-            "navd88StageFt": -1.577774076,
-            "mllwStageFt": 1.082225924
+            "navd88StageFt": -1.443597058,
+            "mllwStageFt": 1.216402942
           },
           {
             "timeUtc": "2026-11-30T13:00:00Z",
-            "navd88StageFt": -1.09752408,
-            "mllwStageFt": 1.56247592
+            "navd88StageFt": -1.02009443,
+            "mllwStageFt": 1.63990557
           },
           {
             "timeUtc": "2026-11-30T14:00:00Z",
-            "navd88StageFt": -0.406989156,
-            "mllwStageFt": 2.253010844
+            "navd88StageFt": -0.403826615,
+            "mllwStageFt": 2.256173385
           },
           {
             "timeUtc": "2026-11-30T15:00:00Z",
-            "navd88StageFt": 0.415960207,
-            "mllwStageFt": 3.075960207
+            "navd88StageFt": 0.358762378,
+            "mllwStageFt": 3.018762378
           },
           {
             "timeUtc": "2026-11-30T16:00:00Z",
-            "navd88StageFt": 1.274140121,
-            "mllwStageFt": 3.934140121
+            "navd88StageFt": 1.147086557,
+            "mllwStageFt": 3.807086557
           },
           {
             "timeUtc": "2026-11-30T17:00:00Z",
-            "navd88StageFt": 1.935367806,
-            "mllwStageFt": 4.595367806
+            "navd88StageFt": 1.737150136,
+            "mllwStageFt": 4.397150136
           },
           {
             "timeUtc": "2026-11-30T18:00:00Z",
-            "navd88StageFt": 2.143791236,
-            "mllwStageFt": 4.803791236
+            "navd88StageFt": 1.911219898,
+            "mllwStageFt": 4.571219898
           },
           {
             "timeUtc": "2026-11-30T19:00:00Z",
-            "navd88StageFt": 1.781280644,
-            "mllwStageFt": 4.441280644
+            "navd88StageFt": 1.563644816,
+            "mllwStageFt": 4.223644816
           },
           {
             "timeUtc": "2026-11-30T20:00:00Z",
-            "navd88StageFt": 1.007121837,
-            "mllwStageFt": 3.667121837
+            "navd88StageFt": 0.820360358,
+            "mllwStageFt": 3.480360358
           },
           {
             "timeUtc": "2026-11-30T21:00:00Z",
-            "navd88StageFt": 0.092648525,
-            "mllwStageFt": 2.752648525
+            "navd88StageFt": -0.083505629,
+            "mllwStageFt": 2.576494371
           },
           {
             "timeUtc": "2026-11-30T22:00:00Z",
-            "navd88StageFt": -0.916692826,
-            "mllwStageFt": 1.743307174
+            "navd88StageFt": -1.064084447,
+            "mllwStageFt": 1.595915553
           },
           {
             "timeUtc": "2026-11-30T23:00:00Z",
-            "navd88StageFt": -1.860534235,
-            "mllwStageFt": 0.799465765
+            "navd88StageFt": -1.991041492,
+            "mllwStageFt": 0.668958508
           },
           {
             "timeUtc": "2026-12-01T00:00:00Z",
-            "navd88StageFt": -2.46232104,
-            "mllwStageFt": 0.19767896
+            "navd88StageFt": -2.57802035,
+            "mllwStageFt": 0.08197965
           },
           {
             "timeUtc": "2026-12-01T01:00:00Z",
-            "navd88StageFt": -2.510030751,
-            "mllwStageFt": 0.149969249
+            "navd88StageFt": -2.60538302,
+            "mllwStageFt": 0.05461698
           },
           {
             "timeUtc": "2026-12-01T02:00:00Z",
-            "navd88StageFt": -1.945944367,
-            "mllwStageFt": 0.714055633
+            "navd88StageFt": -2.035557956,
+            "mllwStageFt": 0.624442044
+          },
+          {
+            "timeUtc": "2026-12-01T03:00:00Z",
+            "navd88StageFt": -1.211266067,
+            "mllwStageFt": 1.448733933
+          },
+          {
+            "timeUtc": "2026-12-01T04:00:00Z",
+            "navd88StageFt": -0.322731831,
+            "mllwStageFt": 2.337268169
+          },
+          {
+            "timeUtc": "2026-12-01T05:00:00Z",
+            "navd88StageFt": 0.492776052,
+            "mllwStageFt": 3.152776052
+          },
+          {
+            "timeUtc": "2026-12-01T06:00:00Z",
+            "navd88StageFt": 0.963898025,
+            "mllwStageFt": 3.623898025
+          },
+          {
+            "timeUtc": "2026-12-01T07:00:00Z",
+            "navd88StageFt": 0.986421286,
+            "mllwStageFt": 3.646421286
+          },
+          {
+            "timeUtc": "2026-12-01T08:00:00Z",
+            "navd88StageFt": 0.550974281,
+            "mllwStageFt": 3.210974281
+          },
+          {
+            "timeUtc": "2026-12-01T09:00:00Z",
+            "navd88StageFt": -0.131150685,
+            "mllwStageFt": 2.528849315
           }
         ]
       },
@@ -549,489 +549,489 @@
         "product": "p10",
         "hours": [
           {
-            "timeUtc": "2026-11-27T02:00:00Z",
-            "navd88StageFt": 4.153150704,
-            "mllwStageFt": 6.813150704
-          },
-          {
-            "timeUtc": "2026-11-27T03:00:00Z",
-            "navd88StageFt": 4.257909137,
-            "mllwStageFt": 6.917909137
-          },
-          {
-            "timeUtc": "2026-11-27T04:00:00Z",
-            "navd88StageFt": 3.98532615,
-            "mllwStageFt": 6.64532615
-          },
-          {
-            "timeUtc": "2026-11-27T05:00:00Z",
-            "navd88StageFt": 3.239976881,
-            "mllwStageFt": 5.899976881
-          },
-          {
-            "timeUtc": "2026-11-27T06:00:00Z",
-            "navd88StageFt": 2.209572272,
-            "mllwStageFt": 4.869572272
-          },
-          {
-            "timeUtc": "2026-11-27T07:00:00Z",
-            "navd88StageFt": 1.102627289,
-            "mllwStageFt": 3.762627289
-          },
-          {
-            "timeUtc": "2026-11-27T08:00:00Z",
-            "navd88StageFt": 0.157805662,
-            "mllwStageFt": 2.817805662
-          },
-          {
             "timeUtc": "2026-11-27T09:00:00Z",
-            "navd88StageFt": -0.469523501,
-            "mllwStageFt": 2.190476499
+            "navd88StageFt": -0.221848275,
+            "mllwStageFt": 2.438151725
           },
           {
             "timeUtc": "2026-11-27T10:00:00Z",
-            "navd88StageFt": -0.259697549,
-            "mllwStageFt": 2.400302451
+            "navd88StageFt": -0.005730719,
+            "mllwStageFt": 2.654269281
           },
           {
             "timeUtc": "2026-11-27T11:00:00Z",
-            "navd88StageFt": 0.542953303,
-            "mllwStageFt": 3.202953303
+            "navd88StageFt": 0.811584012,
+            "mllwStageFt": 3.471584012
           },
           {
             "timeUtc": "2026-11-27T12:00:00Z",
-            "navd88StageFt": 1.62986289,
-            "mllwStageFt": 4.28986289
+            "navd88StageFt": 1.866790634,
+            "mllwStageFt": 4.526790634
           },
           {
             "timeUtc": "2026-11-27T13:00:00Z",
-            "navd88StageFt": 2.682703267,
-            "mllwStageFt": 5.342703267
+            "navd88StageFt": 2.827063518,
+            "mllwStageFt": 5.487063518
           },
           {
             "timeUtc": "2026-11-27T14:00:00Z",
-            "navd88StageFt": 3.460383644,
-            "mllwStageFt": 6.120383644
+            "navd88StageFt": 3.567602561,
+            "mllwStageFt": 6.227602561
           },
           {
             "timeUtc": "2026-11-27T15:00:00Z",
-            "navd88StageFt": 3.847630105,
-            "mllwStageFt": 6.507630105
+            "navd88StageFt": 3.899238187,
+            "mllwStageFt": 6.559238187
           },
           {
             "timeUtc": "2026-11-27T16:00:00Z",
-            "navd88StageFt": 3.744652745,
-            "mllwStageFt": 6.404652745
+            "navd88StageFt": 3.821688083,
+            "mllwStageFt": 6.481688083
           },
           {
             "timeUtc": "2026-11-27T17:00:00Z",
-            "navd88StageFt": 3.001645717,
-            "mllwStageFt": 5.661645717
+            "navd88StageFt": 3.064827486,
+            "mllwStageFt": 5.724827486
           },
           {
             "timeUtc": "2026-11-27T18:00:00Z",
-            "navd88StageFt": 1.91513288,
-            "mllwStageFt": 4.57513288
+            "navd88StageFt": 2.000226641,
+            "mllwStageFt": 4.660226641
           },
           {
             "timeUtc": "2026-11-27T19:00:00Z",
-            "navd88StageFt": 0.500363199,
-            "mllwStageFt": 3.160363199
+            "navd88StageFt": 0.5881335,
+            "mllwStageFt": 3.2481335
           },
           {
             "timeUtc": "2026-11-27T20:00:00Z",
-            "navd88StageFt": -0.903695292,
-            "mllwStageFt": 1.756304708
+            "navd88StageFt": -0.80776996,
+            "mllwStageFt": 1.85223004
           },
           {
             "timeUtc": "2026-11-27T21:00:00Z",
-            "navd88StageFt": -2.100092574,
-            "mllwStageFt": 0.559907426
+            "navd88StageFt": -1.969159757,
+            "mllwStageFt": 0.690840243
           },
           {
             "timeUtc": "2026-11-27T22:00:00Z",
-            "navd88StageFt": -2.548622027,
-            "mllwStageFt": 0.111377973
+            "navd88StageFt": -2.436492727,
+            "mllwStageFt": 0.223507273
           },
           {
             "timeUtc": "2026-11-27T23:00:00Z",
-            "navd88StageFt": -2.158172479,
-            "mllwStageFt": 0.501827521
+            "navd88StageFt": -2.051007726,
+            "mllwStageFt": 0.608992274
           },
           {
             "timeUtc": "2026-11-28T00:00:00Z",
-            "navd88StageFt": -1.377234753,
-            "mllwStageFt": 1.282765247
+            "navd88StageFt": -1.231913223,
+            "mllwStageFt": 1.428086777
           },
           {
             "timeUtc": "2026-11-28T01:00:00Z",
-            "navd88StageFt": -0.515948533,
-            "mllwStageFt": 2.144051467
+            "navd88StageFt": -0.371579718,
+            "mllwStageFt": 2.288420282
           },
           {
             "timeUtc": "2026-11-28T02:00:00Z",
-            "navd88StageFt": 0.305687669,
-            "mllwStageFt": 2.965687669
+            "navd88StageFt": 0.445840543,
+            "mllwStageFt": 3.105840543
           },
           {
             "timeUtc": "2026-11-28T03:00:00Z",
-            "navd88StageFt": 0.868463845,
-            "mllwStageFt": 3.528463845
+            "navd88StageFt": 1.053825925,
+            "mllwStageFt": 3.713825925
           },
           {
             "timeUtc": "2026-11-28T04:00:00Z",
-            "navd88StageFt": 0.999040688,
-            "mllwStageFt": 3.659040688
+            "navd88StageFt": 1.186751921,
+            "mllwStageFt": 3.846751921
           },
           {
             "timeUtc": "2026-11-28T05:00:00Z",
-            "navd88StageFt": 0.605884712,
-            "mllwStageFt": 3.265884712
+            "navd88StageFt": 0.794164717,
+            "mllwStageFt": 3.454164717
           },
           {
             "timeUtc": "2026-11-28T06:00:00Z",
-            "navd88StageFt": -0.142304853,
-            "mllwStageFt": 2.517695147
+            "navd88StageFt": 0.031073662,
+            "mllwStageFt": 2.691073662
           },
           {
             "timeUtc": "2026-11-28T07:00:00Z",
-            "navd88StageFt": -1.031516707,
-            "mllwStageFt": 1.628483293
+            "navd88StageFt": -0.826383641,
+            "mllwStageFt": 1.833616359
           },
           {
             "timeUtc": "2026-11-28T08:00:00Z",
-            "navd88StageFt": -1.898420188,
-            "mllwStageFt": 0.761579812
+            "navd88StageFt": -1.678643649,
+            "mllwStageFt": 0.981356351
           },
           {
             "timeUtc": "2026-11-28T09:00:00Z",
-            "navd88StageFt": -2.551383148,
-            "mllwStageFt": 0.108616852
+            "navd88StageFt": -2.389019204,
+            "mllwStageFt": 0.270980796
           },
           {
             "timeUtc": "2026-11-28T10:00:00Z",
-            "navd88StageFt": -2.662922653,
-            "mllwStageFt": -0.002922653
+            "navd88StageFt": -2.533460795,
+            "mllwStageFt": 0.126539205
           },
           {
             "timeUtc": "2026-11-28T11:00:00Z",
-            "navd88StageFt": -1.940946984,
-            "mllwStageFt": 0.719053016
+            "navd88StageFt": -1.82312941,
+            "mllwStageFt": 0.83687059
           },
           {
             "timeUtc": "2026-11-28T12:00:00Z",
-            "navd88StageFt": -0.840545728,
-            "mllwStageFt": 1.819454272
+            "navd88StageFt": -0.697672553,
+            "mllwStageFt": 1.962327447
           },
           {
             "timeUtc": "2026-11-28T13:00:00Z",
-            "navd88StageFt": 0.33844908,
-            "mllwStageFt": 2.99844908
+            "navd88StageFt": 0.497974112,
+            "mllwStageFt": 3.157974112
           },
           {
             "timeUtc": "2026-11-28T14:00:00Z",
-            "navd88StageFt": 1.419289193,
-            "mllwStageFt": 4.079289193
+            "navd88StageFt": 1.590649073,
+            "mllwStageFt": 4.250649073
           },
           {
             "timeUtc": "2026-11-28T15:00:00Z",
-            "navd88StageFt": 2.191922974,
-            "mllwStageFt": 4.851922974
+            "navd88StageFt": 2.371481235,
+            "mllwStageFt": 5.031481235
           },
           {
             "timeUtc": "2026-11-28T16:00:00Z",
-            "navd88StageFt": 2.528420892,
-            "mllwStageFt": 5.188420892
+            "navd88StageFt": 2.666168196,
+            "mllwStageFt": 5.326168196
           },
           {
             "timeUtc": "2026-11-28T17:00:00Z",
-            "navd88StageFt": 2.366917635,
-            "mllwStageFt": 5.026917635
+            "navd88StageFt": 2.466691236,
+            "mllwStageFt": 5.126691236
           },
           {
             "timeUtc": "2026-11-28T18:00:00Z",
-            "navd88StageFt": 1.520349928,
-            "mllwStageFt": 4.180349928
+            "navd88StageFt": 1.603341528,
+            "mllwStageFt": 4.263341528
           },
           {
             "timeUtc": "2026-11-28T19:00:00Z",
-            "navd88StageFt": 0.458559132,
-            "mllwStageFt": 3.118559132
+            "navd88StageFt": 0.546971468,
+            "mllwStageFt": 3.206971468
           },
           {
             "timeUtc": "2026-11-28T20:00:00Z",
-            "navd88StageFt": -0.716191509,
-            "mllwStageFt": 1.943808491
+            "navd88StageFt": -0.628544935,
+            "mllwStageFt": 2.031455065
           },
           {
             "timeUtc": "2026-11-28T21:00:00Z",
-            "navd88StageFt": -1.933347778,
-            "mllwStageFt": 0.726652222
+            "navd88StageFt": -1.824052618,
+            "mllwStageFt": 0.835947382
           },
           {
             "timeUtc": "2026-11-28T22:00:00Z",
-            "navd88StageFt": -2.770155139,
-            "mllwStageFt": -0.110155139
+            "navd88StageFt": -2.640429467,
+            "mllwStageFt": 0.019570533
           },
           {
             "timeUtc": "2026-11-28T23:00:00Z",
-            "navd88StageFt": -2.90991414,
-            "mllwStageFt": -0.24991414
+            "navd88StageFt": -2.77626885,
+            "mllwStageFt": -0.11626885
           },
           {
             "timeUtc": "2026-11-29T00:00:00Z",
-            "navd88StageFt": -2.253968788,
-            "mllwStageFt": 0.406031212
+            "navd88StageFt": -2.136628404,
+            "mllwStageFt": 0.523371596
           },
           {
             "timeUtc": "2026-11-29T01:00:00Z",
-            "navd88StageFt": -1.336751257,
-            "mllwStageFt": 1.323248743
+            "navd88StageFt": -1.203992887,
+            "mllwStageFt": 1.456007113
           },
           {
             "timeUtc": "2026-11-29T02:00:00Z",
-            "navd88StageFt": -0.434875704,
-            "mllwStageFt": 2.225124296
+            "navd88StageFt": -0.304922897,
+            "mllwStageFt": 2.355077103
           },
           {
             "timeUtc": "2026-11-29T03:00:00Z",
-            "navd88StageFt": 0.437079301,
-            "mllwStageFt": 3.097079301
+            "navd88StageFt": 0.580411249,
+            "mllwStageFt": 3.240411249
           },
           {
             "timeUtc": "2026-11-29T04:00:00Z",
-            "navd88StageFt": 0.977538868,
-            "mllwStageFt": 3.637538868
+            "navd88StageFt": 1.115067366,
+            "mllwStageFt": 3.775067366
           },
           {
             "timeUtc": "2026-11-29T05:00:00Z",
-            "navd88StageFt": 0.977010121,
-            "mllwStageFt": 3.637010121
+            "navd88StageFt": 1.141980571,
+            "mllwStageFt": 3.801980571
           },
           {
             "timeUtc": "2026-11-29T06:00:00Z",
-            "navd88StageFt": 0.36966536,
-            "mllwStageFt": 3.02966536
+            "navd88StageFt": 0.525069616,
+            "mllwStageFt": 3.185069616
           },
           {
             "timeUtc": "2026-11-29T07:00:00Z",
-            "navd88StageFt": -0.411092381,
-            "mllwStageFt": 2.248907619
+            "navd88StageFt": -0.266882352,
+            "mllwStageFt": 2.393117648
           },
           {
             "timeUtc": "2026-11-29T08:00:00Z",
-            "navd88StageFt": -1.28335833,
-            "mllwStageFt": 1.37664167
+            "navd88StageFt": -1.128248194,
+            "mllwStageFt": 1.531751806
           },
           {
             "timeUtc": "2026-11-29T09:00:00Z",
-            "navd88StageFt": -2.159301479,
-            "mllwStageFt": 0.500698521
+            "navd88StageFt": -2.012692867,
+            "mllwStageFt": 0.647307133
           },
           {
             "timeUtc": "2026-11-29T10:00:00Z",
-            "navd88StageFt": -2.740066786,
-            "mllwStageFt": -0.080066786
+            "navd88StageFt": -2.606895276,
+            "mllwStageFt": 0.053104724
           },
           {
             "timeUtc": "2026-11-29T11:00:00Z",
-            "navd88StageFt": -2.696195807,
-            "mllwStageFt": -0.036195807
+            "navd88StageFt": -2.553948789,
+            "mllwStageFt": 0.106051211
           },
           {
             "timeUtc": "2026-11-29T12:00:00Z",
-            "navd88StageFt": -1.861933153,
-            "mllwStageFt": 0.798066847
+            "navd88StageFt": -1.741294205,
+            "mllwStageFt": 0.918705795
           },
           {
             "timeUtc": "2026-11-29T13:00:00Z",
-            "navd88StageFt": -0.86109232,
-            "mllwStageFt": 1.79890768
+            "navd88StageFt": -0.721332199,
+            "mllwStageFt": 1.938667801
           },
           {
             "timeUtc": "2026-11-29T14:00:00Z",
-            "navd88StageFt": 0.193397864,
-            "mllwStageFt": 2.853397864
+            "navd88StageFt": 0.312997454,
+            "mllwStageFt": 2.972997454
           },
           {
             "timeUtc": "2026-11-29T15:00:00Z",
-            "navd88StageFt": 1.272288162,
-            "mllwStageFt": 3.932288162
+            "navd88StageFt": 1.416772568,
+            "mllwStageFt": 4.076772568
           },
           {
             "timeUtc": "2026-11-29T16:00:00Z",
-            "navd88StageFt": 2.090826561,
-            "mllwStageFt": 4.750826561
+            "navd88StageFt": 2.217166897,
+            "mllwStageFt": 4.877166897
           },
           {
             "timeUtc": "2026-11-29T17:00:00Z",
-            "navd88StageFt": 2.426513439,
-            "mllwStageFt": 5.086513439
+            "navd88StageFt": 2.553391387,
+            "mllwStageFt": 5.213391387
           },
           {
             "timeUtc": "2026-11-29T18:00:00Z",
-            "navd88StageFt": 2.167480153,
-            "mllwStageFt": 4.827480153
+            "navd88StageFt": 2.291369695,
+            "mllwStageFt": 4.951369695
           },
           {
             "timeUtc": "2026-11-29T19:00:00Z",
-            "navd88StageFt": 1.419391801,
-            "mllwStageFt": 4.079391801
+            "navd88StageFt": 1.564078275,
+            "mllwStageFt": 4.224078275
           },
           {
             "timeUtc": "2026-11-29T20:00:00Z",
-            "navd88StageFt": 0.449100135,
-            "mllwStageFt": 3.109100135
+            "navd88StageFt": 0.617645004,
+            "mllwStageFt": 3.277645004
           },
           {
             "timeUtc": "2026-11-29T21:00:00Z",
-            "navd88StageFt": -0.59667475,
-            "mllwStageFt": 2.06332525
+            "navd88StageFt": -0.434764742,
+            "mllwStageFt": 2.225235258
           },
           {
             "timeUtc": "2026-11-29T22:00:00Z",
-            "navd88StageFt": -1.594767291,
-            "mllwStageFt": 1.065232709
+            "navd88StageFt": -1.440091205,
+            "mllwStageFt": 1.219908795
           },
           {
             "timeUtc": "2026-11-29T23:00:00Z",
-            "navd88StageFt": -2.245139901,
-            "mllwStageFt": 0.414860099
+            "navd88StageFt": -2.097974628,
+            "mllwStageFt": 0.562025372
           },
           {
             "timeUtc": "2026-11-30T00:00:00Z",
-            "navd88StageFt": -2.180184656,
-            "mllwStageFt": 0.479815344
+            "navd88StageFt": -2.016484267,
+            "mllwStageFt": 0.643515733
           },
           {
             "timeUtc": "2026-11-30T01:00:00Z",
-            "navd88StageFt": -1.445331112,
-            "mllwStageFt": 1.214668888
+            "navd88StageFt": -1.286144403,
+            "mllwStageFt": 1.373855597
           },
           {
             "timeUtc": "2026-11-30T02:00:00Z",
-            "navd88StageFt": -0.519950434,
-            "mllwStageFt": 2.140049566
+            "navd88StageFt": -0.350591202,
+            "mllwStageFt": 2.309408798
           },
           {
             "timeUtc": "2026-11-30T03:00:00Z",
-            "navd88StageFt": 0.449602564,
-            "mllwStageFt": 3.109602564
+            "navd88StageFt": 0.624729919,
+            "mllwStageFt": 3.284729919
           },
           {
             "timeUtc": "2026-11-30T04:00:00Z",
-            "navd88StageFt": 1.324401525,
-            "mllwStageFt": 3.984401525
+            "navd88StageFt": 1.497401479,
+            "mllwStageFt": 4.157401479
           },
           {
             "timeUtc": "2026-11-30T05:00:00Z",
-            "navd88StageFt": 1.834505468,
-            "mllwStageFt": 4.494505468
+            "navd88StageFt": 2.002098919,
+            "mllwStageFt": 4.662098919
           },
           {
             "timeUtc": "2026-11-30T06:00:00Z",
-            "navd88StageFt": 1.802371232,
-            "mllwStageFt": 4.462371232
+            "navd88StageFt": 1.994590707,
+            "mllwStageFt": 4.654590707
           },
           {
             "timeUtc": "2026-11-30T07:00:00Z",
-            "navd88StageFt": 1.285558663,
-            "mllwStageFt": 3.945558663
+            "navd88StageFt": 1.52437045,
+            "mllwStageFt": 4.18437045
           },
           {
             "timeUtc": "2026-11-30T08:00:00Z",
-            "navd88StageFt": 0.464723964,
-            "mllwStageFt": 3.124723964
+            "navd88StageFt": 0.722386023,
+            "mllwStageFt": 3.382386023
           },
           {
             "timeUtc": "2026-11-30T09:00:00Z",
-            "navd88StageFt": -0.416424295,
-            "mllwStageFt": 2.243575705
+            "navd88StageFt": -0.188807261,
+            "mllwStageFt": 2.471192739
           },
           {
             "timeUtc": "2026-11-30T10:00:00Z",
-            "navd88StageFt": -1.305782482,
-            "mllwStageFt": 1.354217518
+            "navd88StageFt": -1.097310063,
+            "mllwStageFt": 1.562689937
           },
           {
             "timeUtc": "2026-11-30T11:00:00Z",
-            "navd88StageFt": -2.000323973,
-            "mllwStageFt": 0.659676027
+            "navd88StageFt": -1.755794177,
+            "mllwStageFt": 0.904205823
           },
           {
             "timeUtc": "2026-11-30T12:00:00Z",
-            "navd88StageFt": -2.12282089,
-            "mllwStageFt": 0.53717911
+            "navd88StageFt": -1.932844344,
+            "mllwStageFt": 0.727155656
           },
           {
             "timeUtc": "2026-11-30T13:00:00Z",
-            "navd88StageFt": -1.602891731,
-            "mllwStageFt": 1.057108269
+            "navd88StageFt": -1.53637356,
+            "mllwStageFt": 1.12362644
           },
           {
             "timeUtc": "2026-11-30T14:00:00Z",
-            "navd88StageFt": -0.908856434,
-            "mllwStageFt": 1.751143566
+            "navd88StageFt": -1.005573307,
+            "mllwStageFt": 1.654426693
           },
           {
             "timeUtc": "2026-11-30T15:00:00Z",
-            "navd88StageFt": -0.033870981,
-            "mllwStageFt": 2.626129019
+            "navd88StageFt": -0.223273204,
+            "mllwStageFt": 2.436726796
           },
           {
             "timeUtc": "2026-11-30T16:00:00Z",
-            "navd88StageFt": 0.796624517,
-            "mllwStageFt": 3.456624517
+            "navd88StageFt": 0.569917276,
+            "mllwStageFt": 3.229917276
           },
           {
             "timeUtc": "2026-11-30T17:00:00Z",
-            "navd88StageFt": 1.47966421,
-            "mllwStageFt": 4.13966421
+            "navd88StageFt": 1.200892197,
+            "mllwStageFt": 3.860892197
           },
           {
             "timeUtc": "2026-11-30T18:00:00Z",
-            "navd88StageFt": 1.772156383,
-            "mllwStageFt": 4.432156383
+            "navd88StageFt": 1.4023284,
+            "mllwStageFt": 4.0623284
           },
           {
             "timeUtc": "2026-11-30T19:00:00Z",
-            "navd88StageFt": 1.393880926,
-            "mllwStageFt": 4.053880926
+            "navd88StageFt": 1.103966407,
+            "mllwStageFt": 3.763966407
           },
           {
             "timeUtc": "2026-11-30T20:00:00Z",
-            "navd88StageFt": 0.666058853,
-            "mllwStageFt": 3.326058853
+            "navd88StageFt": 0.398956898,
+            "mllwStageFt": 3.058956898
           },
           {
             "timeUtc": "2026-11-30T21:00:00Z",
-            "navd88StageFt": -0.1900529,
-            "mllwStageFt": 2.4699471
+            "navd88StageFt": -0.453786537,
+            "mllwStageFt": 2.206213463
           },
           {
             "timeUtc": "2026-11-30T22:00:00Z",
-            "navd88StageFt": -1.201728398,
-            "mllwStageFt": 1.458271602
+            "navd88StageFt": -1.346763004,
+            "mllwStageFt": 1.313236996
           },
           {
             "timeUtc": "2026-11-30T23:00:00Z",
-            "navd88StageFt": -2.140035863,
-            "mllwStageFt": 0.519964137
+            "navd88StageFt": -2.245900534,
+            "mllwStageFt": 0.414099466
           },
           {
             "timeUtc": "2026-12-01T00:00:00Z",
-            "navd88StageFt": -2.851853493,
-            "mllwStageFt": -0.191853493
+            "navd88StageFt": -2.902493493,
+            "mllwStageFt": -0.242493493
           },
           {
             "timeUtc": "2026-12-01T01:00:00Z",
-            "navd88StageFt": -2.901424614,
-            "mllwStageFt": -0.241424614
+            "navd88StageFt": -2.999117668,
+            "mllwStageFt": -0.339117668
           },
           {
             "timeUtc": "2026-12-01T02:00:00Z",
-            "navd88StageFt": -2.341574459,
-            "mllwStageFt": 0.318425541
+            "navd88StageFt": -2.45940263,
+            "mllwStageFt": 0.20059737
+          },
+          {
+            "timeUtc": "2026-12-01T03:00:00Z",
+            "navd88StageFt": -1.643122082,
+            "mllwStageFt": 1.016877918
+          },
+          {
+            "timeUtc": "2026-12-01T04:00:00Z",
+            "navd88StageFt": -0.724380704,
+            "mllwStageFt": 1.935619296
+          },
+          {
+            "timeUtc": "2026-12-01T05:00:00Z",
+            "navd88StageFt": 0.058939835,
+            "mllwStageFt": 2.718939835
+          },
+          {
+            "timeUtc": "2026-12-01T06:00:00Z",
+            "navd88StageFt": 0.540529093,
+            "mllwStageFt": 3.200529093
+          },
+          {
+            "timeUtc": "2026-12-01T07:00:00Z",
+            "navd88StageFt": 0.601779819,
+            "mllwStageFt": 3.261779819
+          },
+          {
+            "timeUtc": "2026-12-01T08:00:00Z",
+            "navd88StageFt": 0.214263799,
+            "mllwStageFt": 2.874263799
+          },
+          {
+            "timeUtc": "2026-12-01T09:00:00Z",
+            "navd88StageFt": -0.501161066,
+            "mllwStageFt": 2.158838934
           }
         ]
       },
@@ -1040,978 +1040,978 @@
         "product": "p90",
         "hours": [
           {
-            "timeUtc": "2026-11-27T02:00:00Z",
-            "navd88StageFt": 4.483205088,
-            "mllwStageFt": 7.143205088
-          },
-          {
-            "timeUtc": "2026-11-27T03:00:00Z",
-            "navd88StageFt": 4.564363211,
-            "mllwStageFt": 7.224363211
-          },
-          {
-            "timeUtc": "2026-11-27T04:00:00Z",
-            "navd88StageFt": 4.262129365,
-            "mllwStageFt": 6.922129365
-          },
-          {
-            "timeUtc": "2026-11-27T05:00:00Z",
-            "navd88StageFt": 3.499881517,
-            "mllwStageFt": 6.159881517
-          },
-          {
-            "timeUtc": "2026-11-27T06:00:00Z",
-            "navd88StageFt": 2.412796372,
-            "mllwStageFt": 5.072796372
-          },
-          {
-            "timeUtc": "2026-11-27T07:00:00Z",
-            "navd88StageFt": 1.342097175,
-            "mllwStageFt": 4.002097175
-          },
-          {
-            "timeUtc": "2026-11-27T08:00:00Z",
-            "navd88StageFt": 0.372955329,
-            "mllwStageFt": 3.032955329
-          },
-          {
             "timeUtc": "2026-11-27T09:00:00Z",
-            "navd88StageFt": -0.233423831,
-            "mllwStageFt": 2.426576169
+            "navd88StageFt": -0.063712723,
+            "mllwStageFt": 2.596287277
           },
           {
             "timeUtc": "2026-11-27T10:00:00Z",
-            "navd88StageFt": -0.004940023,
-            "mllwStageFt": 2.655059977
+            "navd88StageFt": 0.160953982,
+            "mllwStageFt": 2.820953982
           },
           {
             "timeUtc": "2026-11-27T11:00:00Z",
-            "navd88StageFt": 0.839656636,
-            "mllwStageFt": 3.499656636
+            "navd88StageFt": 1.00843757,
+            "mllwStageFt": 3.66843757
           },
           {
             "timeUtc": "2026-11-27T12:00:00Z",
-            "navd88StageFt": 1.926589834,
-            "mllwStageFt": 4.586589834
+            "navd88StageFt": 2.082855011,
+            "mllwStageFt": 4.742855011
           },
           {
             "timeUtc": "2026-11-27T13:00:00Z",
-            "navd88StageFt": 2.920219381,
-            "mllwStageFt": 5.580219381
+            "navd88StageFt": 3.060976112,
+            "mllwStageFt": 5.720976112
           },
           {
             "timeUtc": "2026-11-27T14:00:00Z",
-            "navd88StageFt": 3.623406911,
-            "mllwStageFt": 6.283406911
+            "navd88StageFt": 3.798527418,
+            "mllwStageFt": 6.458527418
           },
           {
             "timeUtc": "2026-11-27T15:00:00Z",
-            "navd88StageFt": 4.015921527,
-            "mllwStageFt": 6.675921527
+            "navd88StageFt": 4.174294879,
+            "mllwStageFt": 6.834294879
           },
           {
             "timeUtc": "2026-11-27T16:00:00Z",
-            "navd88StageFt": 3.957501451,
-            "mllwStageFt": 6.617501451
+            "navd88StageFt": 4.123633551,
+            "mllwStageFt": 6.783633551
           },
           {
             "timeUtc": "2026-11-27T17:00:00Z",
-            "navd88StageFt": 3.25411873,
-            "mllwStageFt": 5.91411873
+            "navd88StageFt": 3.419513481,
+            "mllwStageFt": 6.079513481
           },
           {
             "timeUtc": "2026-11-27T18:00:00Z",
-            "navd88StageFt": 2.199144788,
-            "mllwStageFt": 4.859144788
+            "navd88StageFt": 2.37969239,
+            "mllwStageFt": 5.03969239
           },
           {
             "timeUtc": "2026-11-27T19:00:00Z",
-            "navd88StageFt": 0.823705276,
-            "mllwStageFt": 3.483705276
+            "navd88StageFt": 0.986320687,
+            "mllwStageFt": 3.646320687
           },
           {
             "timeUtc": "2026-11-27T20:00:00Z",
-            "navd88StageFt": -0.52987838,
-            "mllwStageFt": 2.13012162
+            "navd88StageFt": -0.359244354,
+            "mllwStageFt": 2.300755646
           },
           {
             "timeUtc": "2026-11-27T21:00:00Z",
-            "navd88StageFt": -1.729703079,
-            "mllwStageFt": 0.930296921
+            "navd88StageFt": -1.549214561,
+            "mllwStageFt": 1.110785439
           },
           {
             "timeUtc": "2026-11-27T22:00:00Z",
-            "navd88StageFt": -2.185066042,
-            "mllwStageFt": 0.474933958
+            "navd88StageFt": -2.044852157,
+            "mllwStageFt": 0.615147843
           },
           {
             "timeUtc": "2026-11-27T23:00:00Z",
-            "navd88StageFt": -1.815767565,
-            "mllwStageFt": 0.844232435
+            "navd88StageFt": -1.67366104,
+            "mllwStageFt": 0.98633896
           },
           {
             "timeUtc": "2026-11-28T00:00:00Z",
-            "navd88StageFt": -1.018954405,
-            "mllwStageFt": 1.641045595
+            "navd88StageFt": -0.875871861,
+            "mllwStageFt": 1.784128139
           },
           {
             "timeUtc": "2026-11-28T01:00:00Z",
-            "navd88StageFt": -0.113501277,
-            "mllwStageFt": 2.546498723
+            "navd88StageFt": 0.032401012,
+            "mllwStageFt": 2.692401012
           },
           {
             "timeUtc": "2026-11-28T02:00:00Z",
-            "navd88StageFt": 0.757151239,
-            "mllwStageFt": 3.417151239
+            "navd88StageFt": 0.894419395,
+            "mllwStageFt": 3.554419395
           },
           {
             "timeUtc": "2026-11-28T03:00:00Z",
-            "navd88StageFt": 1.334407478,
-            "mllwStageFt": 3.994407478
+            "navd88StageFt": 1.454886862,
+            "mllwStageFt": 4.114886862
           },
           {
             "timeUtc": "2026-11-28T04:00:00Z",
-            "navd88StageFt": 1.470851037,
-            "mllwStageFt": 4.130851037
+            "navd88StageFt": 1.562604972,
+            "mllwStageFt": 4.222604972
           },
           {
             "timeUtc": "2026-11-28T05:00:00Z",
-            "navd88StageFt": 1.094591219,
-            "mllwStageFt": 3.754591219
+            "navd88StageFt": 1.200893363,
+            "mllwStageFt": 3.860893363
           },
           {
             "timeUtc": "2026-11-28T06:00:00Z",
-            "navd88StageFt": 0.288183765,
-            "mllwStageFt": 2.948183765
+            "navd88StageFt": 0.417915358,
+            "mllwStageFt": 3.077915358
           },
           {
             "timeUtc": "2026-11-28T07:00:00Z",
-            "navd88StageFt": -0.564006433,
-            "mllwStageFt": 2.095993567
+            "navd88StageFt": -0.436070515,
+            "mllwStageFt": 2.223929485
           },
           {
             "timeUtc": "2026-11-28T08:00:00Z",
-            "navd88StageFt": -1.386781721,
-            "mllwStageFt": 1.273218279
+            "navd88StageFt": -1.295690639,
+            "mllwStageFt": 1.364309361
           },
           {
             "timeUtc": "2026-11-28T09:00:00Z",
-            "navd88StageFt": -2.082362934,
-            "mllwStageFt": 0.577637066
+            "navd88StageFt": -2.000535092,
+            "mllwStageFt": 0.659464908
           },
           {
             "timeUtc": "2026-11-28T10:00:00Z",
-            "navd88StageFt": -2.252209688,
-            "mllwStageFt": 0.407790312
+            "navd88StageFt": -2.148428502,
+            "mllwStageFt": 0.511571498
           },
           {
             "timeUtc": "2026-11-28T11:00:00Z",
-            "navd88StageFt": -1.541893943,
-            "mllwStageFt": 1.118106057
+            "navd88StageFt": -1.440839819,
+            "mllwStageFt": 1.219160181
           },
           {
             "timeUtc": "2026-11-28T12:00:00Z",
-            "navd88StageFt": -0.485755298,
-            "mllwStageFt": 2.174244702
+            "navd88StageFt": -0.361006682,
+            "mllwStageFt": 2.298993318
           },
           {
             "timeUtc": "2026-11-28T13:00:00Z",
-            "navd88StageFt": 0.627939388,
-            "mllwStageFt": 3.287939388
+            "navd88StageFt": 0.763065532,
+            "mllwStageFt": 3.423065532
           },
           {
             "timeUtc": "2026-11-28T14:00:00Z",
-            "navd88StageFt": 1.706409302,
-            "mllwStageFt": 4.366409302
+            "navd88StageFt": 1.829727877,
+            "mllwStageFt": 4.489727877
           },
           {
             "timeUtc": "2026-11-28T15:00:00Z",
-            "navd88StageFt": 2.498020951,
-            "mllwStageFt": 5.158020951
+            "navd88StageFt": 2.614640562,
+            "mllwStageFt": 5.274640562
           },
           {
             "timeUtc": "2026-11-28T16:00:00Z",
-            "navd88StageFt": 2.811428069,
-            "mllwStageFt": 5.471428069
+            "navd88StageFt": 2.921417003,
+            "mllwStageFt": 5.581417003
           },
           {
             "timeUtc": "2026-11-28T17:00:00Z",
-            "navd88StageFt": 2.64252706,
-            "mllwStageFt": 5.30252706
+            "navd88StageFt": 2.768357389,
+            "mllwStageFt": 5.428357389
           },
           {
             "timeUtc": "2026-11-28T18:00:00Z",
-            "navd88StageFt": 1.816260955,
-            "mllwStageFt": 4.476260955
+            "navd88StageFt": 1.952213308,
+            "mllwStageFt": 4.612213308
           },
           {
             "timeUtc": "2026-11-28T19:00:00Z",
-            "navd88StageFt": 0.77304552,
-            "mllwStageFt": 3.43304552
+            "navd88StageFt": 0.921950644,
+            "mllwStageFt": 3.581950644
           },
           {
             "timeUtc": "2026-11-28T20:00:00Z",
-            "navd88StageFt": -0.386311858,
-            "mllwStageFt": 2.273688142
+            "navd88StageFt": -0.260766001,
+            "mllwStageFt": 2.399233999
           },
           {
             "timeUtc": "2026-11-28T21:00:00Z",
-            "navd88StageFt": -1.590663682,
-            "mllwStageFt": 1.069336318
+            "navd88StageFt": -1.495268232,
+            "mllwStageFt": 1.164731768
           },
           {
             "timeUtc": "2026-11-28T22:00:00Z",
-            "navd88StageFt": -2.487261949,
-            "mllwStageFt": 0.172738051
+            "navd88StageFt": -2.353904979,
+            "mllwStageFt": 0.306095021
           },
           {
             "timeUtc": "2026-11-28T23:00:00Z",
-            "navd88StageFt": -2.681163841,
-            "mllwStageFt": -0.021163841
+            "navd88StageFt": -2.576378782,
+            "mllwStageFt": 0.083621218
           },
           {
             "timeUtc": "2026-11-29T00:00:00Z",
-            "navd88StageFt": -2.031587378,
-            "mllwStageFt": 0.628412622
+            "navd88StageFt": -1.914770147,
+            "mllwStageFt": 0.745229853
           },
           {
             "timeUtc": "2026-11-29T01:00:00Z",
-            "navd88StageFt": -1.115455883,
-            "mllwStageFt": 1.544544117
+            "navd88StageFt": -0.985376551,
+            "mllwStageFt": 1.674623449
           },
           {
             "timeUtc": "2026-11-29T02:00:00Z",
-            "navd88StageFt": -0.214516919,
-            "mllwStageFt": 2.445483081
+            "navd88StageFt": -0.094036471,
+            "mllwStageFt": 2.565963529
           },
           {
             "timeUtc": "2026-11-29T03:00:00Z",
-            "navd88StageFt": 0.672177014,
-            "mllwStageFt": 3.332177014
+            "navd88StageFt": 0.813919628,
+            "mllwStageFt": 3.473919628
           },
           {
             "timeUtc": "2026-11-29T04:00:00Z",
-            "navd88StageFt": 1.25364976,
-            "mllwStageFt": 3.91364976
+            "navd88StageFt": 1.348195459,
+            "mllwStageFt": 4.008195459
           },
           {
             "timeUtc": "2026-11-29T05:00:00Z",
-            "navd88StageFt": 1.266720003,
-            "mllwStageFt": 3.926720003
+            "navd88StageFt": 1.383889579,
+            "mllwStageFt": 4.043889579
           },
           {
             "timeUtc": "2026-11-29T06:00:00Z",
-            "navd88StageFt": 0.679002515,
-            "mllwStageFt": 3.339002515
+            "navd88StageFt": 0.784285079,
+            "mllwStageFt": 3.444285079
           },
           {
             "timeUtc": "2026-11-29T07:00:00Z",
-            "navd88StageFt": -0.089686469,
-            "mllwStageFt": 2.570313531
+            "navd88StageFt": 0.013029693,
+            "mllwStageFt": 2.673029693
           },
           {
             "timeUtc": "2026-11-29T08:00:00Z",
-            "navd88StageFt": -0.958092497,
-            "mllwStageFt": 1.701907503
+            "navd88StageFt": -0.827111089,
+            "mllwStageFt": 1.832888911
           },
           {
             "timeUtc": "2026-11-29T09:00:00Z",
-            "navd88StageFt": -1.825176192,
-            "mllwStageFt": 0.834823808
+            "navd88StageFt": -1.718828147,
+            "mllwStageFt": 0.941171853
           },
           {
             "timeUtc": "2026-11-29T10:00:00Z",
-            "navd88StageFt": -2.433413343,
-            "mllwStageFt": 0.226586657
+            "navd88StageFt": -2.331964369,
+            "mllwStageFt": 0.328035631
           },
           {
             "timeUtc": "2026-11-29T11:00:00Z",
-            "navd88StageFt": -2.404888117,
-            "mllwStageFt": 0.255111883
+            "navd88StageFt": -2.294799391,
+            "mllwStageFt": 0.365200609
           },
           {
             "timeUtc": "2026-11-29T12:00:00Z",
-            "navd88StageFt": -1.615405491,
-            "mllwStageFt": 1.044594509
+            "navd88StageFt": -1.506087819,
+            "mllwStageFt": 1.153912181
           },
           {
             "timeUtc": "2026-11-29T13:00:00Z",
-            "navd88StageFt": -0.601089394,
-            "mllwStageFt": 2.058910606
+            "navd88StageFt": -0.487089912,
+            "mllwStageFt": 2.172910088
           },
           {
             "timeUtc": "2026-11-29T14:00:00Z",
-            "navd88StageFt": 0.458783972,
-            "mllwStageFt": 3.118783972
+            "navd88StageFt": 0.562899205,
+            "mllwStageFt": 3.222899205
           },
           {
             "timeUtc": "2026-11-29T15:00:00Z",
-            "navd88StageFt": 1.535755611,
-            "mllwStageFt": 4.195755611
+            "navd88StageFt": 1.657825293,
+            "mllwStageFt": 4.317825293
           },
           {
             "timeUtc": "2026-11-29T16:00:00Z",
-            "navd88StageFt": 2.325522146,
-            "mllwStageFt": 4.985522146
+            "navd88StageFt": 2.447902581,
+            "mllwStageFt": 5.107902581
           },
           {
             "timeUtc": "2026-11-29T17:00:00Z",
-            "navd88StageFt": 2.649362048,
-            "mllwStageFt": 5.309362048
+            "navd88StageFt": 2.773012747,
+            "mllwStageFt": 5.433012747
           },
           {
             "timeUtc": "2026-11-29T18:00:00Z",
-            "navd88StageFt": 2.394093111,
-            "mllwStageFt": 5.054093111
+            "navd88StageFt": 2.517592161,
+            "mllwStageFt": 5.177592161
           },
           {
             "timeUtc": "2026-11-29T19:00:00Z",
-            "navd88StageFt": 1.670657781,
-            "mllwStageFt": 4.330657781
+            "navd88StageFt": 1.790986818,
+            "mllwStageFt": 4.450986818
           },
           {
             "timeUtc": "2026-11-29T20:00:00Z",
-            "navd88StageFt": 0.704440028,
-            "mllwStageFt": 3.364440028
+            "navd88StageFt": 0.838290815,
+            "mllwStageFt": 3.498290815
           },
           {
             "timeUtc": "2026-11-29T21:00:00Z",
-            "navd88StageFt": -0.339627965,
-            "mllwStageFt": 2.320372035
+            "navd88StageFt": -0.197472512,
+            "mllwStageFt": 2.462527488
           },
           {
             "timeUtc": "2026-11-29T22:00:00Z",
-            "navd88StageFt": -1.345481455,
-            "mllwStageFt": 1.314518545
+            "navd88StageFt": -1.208565056,
+            "mllwStageFt": 1.451434944
           },
           {
             "timeUtc": "2026-11-29T23:00:00Z",
-            "navd88StageFt": -2.025055175,
-            "mllwStageFt": 0.634944825
+            "navd88StageFt": -1.904652468,
+            "mllwStageFt": 0.755347532
           },
           {
             "timeUtc": "2026-11-30T00:00:00Z",
-            "navd88StageFt": -2.003447223,
-            "mllwStageFt": 0.656552777
+            "navd88StageFt": -1.876884515,
+            "mllwStageFt": 0.783115485
           },
           {
             "timeUtc": "2026-11-30T01:00:00Z",
-            "navd88StageFt": -1.280633162,
-            "mllwStageFt": 1.379366838
+            "navd88StageFt": -1.143648197,
+            "mllwStageFt": 1.516351803
           },
           {
             "timeUtc": "2026-11-30T02:00:00Z",
-            "navd88StageFt": -0.345086156,
-            "mllwStageFt": 2.314913844
+            "navd88StageFt": -0.197004956,
+            "mllwStageFt": 2.462995044
           },
           {
             "timeUtc": "2026-11-30T03:00:00Z",
-            "navd88StageFt": 0.606661977,
-            "mllwStageFt": 3.266661977
+            "navd88StageFt": 0.759612583,
+            "mllwStageFt": 3.419612583
           },
           {
             "timeUtc": "2026-11-30T04:00:00Z",
-            "navd88StageFt": 1.450912463,
-            "mllwStageFt": 4.110912463
+            "navd88StageFt": 1.621412691,
+            "mllwStageFt": 4.281412691
           },
           {
             "timeUtc": "2026-11-30T05:00:00Z",
-            "navd88StageFt": 1.969658964,
-            "mllwStageFt": 4.629658964
+            "navd88StageFt": 2.149400867,
+            "mllwStageFt": 4.809400867
           },
           {
             "timeUtc": "2026-11-30T06:00:00Z",
-            "navd88StageFt": 1.984911293,
-            "mllwStageFt": 4.644911293
+            "navd88StageFt": 2.16124815,
+            "mllwStageFt": 4.82124815
           },
           {
             "timeUtc": "2026-11-30T07:00:00Z",
-            "navd88StageFt": 1.575120867,
-            "mllwStageFt": 4.235120867
+            "navd88StageFt": 1.756278855,
+            "mllwStageFt": 4.416278855
           },
           {
             "timeUtc": "2026-11-30T08:00:00Z",
-            "navd88StageFt": 0.85297158,
-            "mllwStageFt": 3.51297158
+            "navd88StageFt": 1.015733234,
+            "mllwStageFt": 3.675733234
           },
           {
             "timeUtc": "2026-11-30T09:00:00Z",
-            "navd88StageFt": 0.059532233,
-            "mllwStageFt": 2.719532233
+            "navd88StageFt": 0.218772786,
+            "mllwStageFt": 2.878772786
           },
           {
             "timeUtc": "2026-11-30T10:00:00Z",
-            "navd88StageFt": -0.727075257,
-            "mllwStageFt": 1.932924743
+            "navd88StageFt": -0.577822684,
+            "mllwStageFt": 2.082177316
           },
           {
             "timeUtc": "2026-11-30T11:00:00Z",
-            "navd88StageFt": -1.2259162,
-            "mllwStageFt": 1.4340838
+            "navd88StageFt": -1.120735447,
+            "mllwStageFt": 1.539264553
           },
           {
             "timeUtc": "2026-11-30T12:00:00Z",
-            "navd88StageFt": -1.28886726,
-            "mllwStageFt": 1.37113274
+            "navd88StageFt": -1.244189523,
+            "mllwStageFt": 1.415810477
           },
           {
             "timeUtc": "2026-11-30T13:00:00Z",
-            "navd88StageFt": -0.768137471,
-            "mllwStageFt": 1.891862529
+            "navd88StageFt": -0.781930837,
+            "mllwStageFt": 1.878069163
           },
           {
             "timeUtc": "2026-11-30T14:00:00Z",
-            "navd88StageFt": -0.022754145,
-            "mllwStageFt": 2.637245855
+            "navd88StageFt": -0.090132833,
+            "mllwStageFt": 2.569867167
           },
           {
             "timeUtc": "2026-11-30T15:00:00Z",
-            "navd88StageFt": 0.7987901,
-            "mllwStageFt": 3.4587901
+            "navd88StageFt": 0.746905963,
+            "mllwStageFt": 3.406905963
           },
           {
             "timeUtc": "2026-11-30T16:00:00Z",
-            "navd88StageFt": 1.664826339,
-            "mllwStageFt": 4.324826339
+            "navd88StageFt": 1.567222235,
+            "mllwStageFt": 4.227222235
           },
           {
             "timeUtc": "2026-11-30T17:00:00Z",
-            "navd88StageFt": 2.254087384,
-            "mllwStageFt": 4.914087384
+            "navd88StageFt": 2.129937704,
+            "mllwStageFt": 4.789937704
           },
           {
             "timeUtc": "2026-11-30T18:00:00Z",
-            "navd88StageFt": 2.452215755,
-            "mllwStageFt": 5.112215755
+            "navd88StageFt": 2.310833316,
+            "mllwStageFt": 4.970833316
           },
           {
             "timeUtc": "2026-11-30T19:00:00Z",
-            "navd88StageFt": 2.129097455,
-            "mllwStageFt": 4.789097455
+            "navd88StageFt": 2.053982653,
+            "mllwStageFt": 4.713982653
           },
           {
             "timeUtc": "2026-11-30T20:00:00Z",
-            "navd88StageFt": 1.399390715,
-            "mllwStageFt": 4.059390715
+            "navd88StageFt": 1.336103921,
+            "mllwStageFt": 3.996103921
           },
           {
             "timeUtc": "2026-11-30T21:00:00Z",
-            "navd88StageFt": 0.509391659,
-            "mllwStageFt": 3.169391659
+            "navd88StageFt": 0.40103112,
+            "mllwStageFt": 3.06103112
           },
           {
             "timeUtc": "2026-11-30T22:00:00Z",
-            "navd88StageFt": -0.539119666,
-            "mllwStageFt": 2.120880334
+            "navd88StageFt": -0.625893878,
+            "mllwStageFt": 2.034106122
           },
           {
             "timeUtc": "2026-11-30T23:00:00Z",
-            "navd88StageFt": -1.485964117,
-            "mllwStageFt": 1.174035883
+            "navd88StageFt": -1.575356768,
+            "mllwStageFt": 1.084643232
           },
           {
             "timeUtc": "2026-12-01T00:00:00Z",
-            "navd88StageFt": -2.071615118,
-            "mllwStageFt": 0.588384882
+            "navd88StageFt": -2.169284153,
+            "mllwStageFt": 0.490715847
           },
           {
             "timeUtc": "2026-12-01T01:00:00Z",
-            "navd88StageFt": -2.125581695,
-            "mllwStageFt": 0.534418305
+            "navd88StageFt": -2.22852199,
+            "mllwStageFt": 0.43147801
           },
           {
             "timeUtc": "2026-12-01T02:00:00Z",
-            "navd88StageFt": -1.564047095,
-            "mllwStageFt": 1.095952905
+            "navd88StageFt": -1.675227992,
+            "mllwStageFt": 0.984772008
+          },
+          {
+            "timeUtc": "2026-12-01T03:00:00Z",
+            "navd88StageFt": -0.904815178,
+            "mllwStageFt": 1.755184822
+          },
+          {
+            "timeUtc": "2026-12-01T04:00:00Z",
+            "navd88StageFt": 0.004991424,
+            "mllwStageFt": 2.664991424
+          },
+          {
+            "timeUtc": "2026-12-01T05:00:00Z",
+            "navd88StageFt": 0.87297699,
+            "mllwStageFt": 3.53297699
+          },
+          {
+            "timeUtc": "2026-12-01T06:00:00Z",
+            "navd88StageFt": 1.324299142,
+            "mllwStageFt": 3.984299142
+          },
+          {
+            "timeUtc": "2026-12-01T07:00:00Z",
+            "navd88StageFt": 1.324585495,
+            "mllwStageFt": 3.984585495
+          },
+          {
+            "timeUtc": "2026-12-01T08:00:00Z",
+            "navd88StageFt": 0.855456511,
+            "mllwStageFt": 3.515456511
+          },
+          {
+            "timeUtc": "2026-12-01T09:00:00Z",
+            "navd88StageFt": 0.189526207,
+            "mllwStageFt": 2.849526207
           }
         ]
       }
     },
     "hours": [
       {
-        "timeUtc": "2026-11-27T02:00:00Z",
-        "navd88StageFt": 4.324783129,
-        "mllwStageFt": 6.984783129
-      },
-      {
-        "timeUtc": "2026-11-27T03:00:00Z",
-        "navd88StageFt": 4.42,
-        "mllwStageFt": 7.08
-      },
-      {
-        "timeUtc": "2026-11-27T04:00:00Z",
-        "navd88StageFt": 4.126915172,
-        "mllwStageFt": 6.786915172
-      },
-      {
-        "timeUtc": "2026-11-27T05:00:00Z",
-        "navd88StageFt": 3.374684702,
-        "mllwStageFt": 6.034684702
-      },
-      {
-        "timeUtc": "2026-11-27T06:00:00Z",
-        "navd88StageFt": 2.306589732,
-        "mllwStageFt": 4.966589732
-      },
-      {
-        "timeUtc": "2026-11-27T07:00:00Z",
-        "navd88StageFt": 1.222004319,
-        "mllwStageFt": 3.882004319
-      },
-      {
-        "timeUtc": "2026-11-27T08:00:00Z",
-        "navd88StageFt": 0.263879771,
-        "mllwStageFt": 2.923879771
-      },
-      {
         "timeUtc": "2026-11-27T09:00:00Z",
-        "navd88StageFt": -0.336749603,
-        "mllwStageFt": 2.323250397
+        "navd88StageFt": -0.160848267,
+        "mllwStageFt": 2.499151733
       },
       {
         "timeUtc": "2026-11-27T10:00:00Z",
-        "navd88StageFt": -0.117256697,
-        "mllwStageFt": 2.542743303
+        "navd88StageFt": 0.063393657,
+        "mllwStageFt": 2.723393657
       },
       {
         "timeUtc": "2026-11-27T11:00:00Z",
-        "navd88StageFt": 0.704167626,
-        "mllwStageFt": 3.364167626
+        "navd88StageFt": 0.898102421,
+        "mllwStageFt": 3.558102421
       },
       {
         "timeUtc": "2026-11-27T12:00:00Z",
-        "navd88StageFt": 1.790697905,
-        "mllwStageFt": 4.450697905
+        "navd88StageFt": 1.968962328,
+        "mllwStageFt": 4.628962328
       },
       {
         "timeUtc": "2026-11-27T13:00:00Z",
-        "navd88StageFt": 2.80060494,
-        "mllwStageFt": 5.46060494
+        "navd88StageFt": 2.939307496,
+        "mllwStageFt": 5.599307496
       },
       {
         "timeUtc": "2026-11-27T14:00:00Z",
-        "navd88StageFt": 3.545243777,
-        "mllwStageFt": 6.205243777
+        "navd88StageFt": 3.665589072,
+        "mllwStageFt": 6.325589072
       },
       {
         "timeUtc": "2026-11-27T15:00:00Z",
-        "navd88StageFt": 3.938200254,
-        "mllwStageFt": 6.598200254
+        "navd88StageFt": 4.030635393,
+        "mllwStageFt": 6.690635393
       },
       {
         "timeUtc": "2026-11-27T16:00:00Z",
-        "navd88StageFt": 3.84690922,
-        "mllwStageFt": 6.50690922
+        "navd88StageFt": 3.971674239,
+        "mllwStageFt": 6.631674239
       },
       {
         "timeUtc": "2026-11-27T17:00:00Z",
-        "navd88StageFt": 3.119336346,
-        "mllwStageFt": 5.779336346
+        "navd88StageFt": 3.240126473,
+        "mllwStageFt": 5.900126473
       },
       {
         "timeUtc": "2026-11-27T18:00:00Z",
-        "navd88StageFt": 2.056918962,
-        "mllwStageFt": 4.716918962
+        "navd88StageFt": 2.180334585,
+        "mllwStageFt": 4.840334585
       },
       {
         "timeUtc": "2026-11-27T19:00:00Z",
-        "navd88StageFt": 0.651289356,
-        "mllwStageFt": 3.311289356
+        "navd88StageFt": 0.780206371,
+        "mllwStageFt": 3.440206371
       },
       {
         "timeUtc": "2026-11-27T20:00:00Z",
-        "navd88StageFt": -0.725630349,
-        "mllwStageFt": 1.934369651
+        "navd88StageFt": -0.588087272,
+        "mllwStageFt": 2.071912728
       },
       {
         "timeUtc": "2026-11-27T21:00:00Z",
-        "navd88StageFt": -1.913862594,
-        "mllwStageFt": 0.746137406
+        "navd88StageFt": -1.752825067,
+        "mllwStageFt": 0.907174933
       },
       {
         "timeUtc": "2026-11-27T22:00:00Z",
-        "navd88StageFt": -2.37337924,
-        "mllwStageFt": 0.28662076
+        "navd88StageFt": -2.235536745,
+        "mllwStageFt": 0.424463255
       },
       {
         "timeUtc": "2026-11-27T23:00:00Z",
-        "navd88StageFt": -1.999868511,
-        "mllwStageFt": 0.660131489
+        "navd88StageFt": -1.862396451,
+        "mllwStageFt": 0.797603549
       },
       {
         "timeUtc": "2026-11-28T00:00:00Z",
-        "navd88StageFt": -1.192238695,
-        "mllwStageFt": 1.467761305
+        "navd88StageFt": -1.046606944,
+        "mllwStageFt": 1.613393056
       },
       {
         "timeUtc": "2026-11-28T01:00:00Z",
-        "navd88StageFt": -0.316962365,
-        "mllwStageFt": 2.343037635
+        "navd88StageFt": -0.170345015,
+        "mllwStageFt": 2.489654985
       },
       {
         "timeUtc": "2026-11-28T02:00:00Z",
-        "navd88StageFt": 0.532541867,
-        "mllwStageFt": 3.192541867
+        "navd88StageFt": 0.697666176,
+        "mllwStageFt": 3.357666176
       },
       {
         "timeUtc": "2026-11-28T03:00:00Z",
-        "navd88StageFt": 1.11208534,
-        "mllwStageFt": 3.77208534
+        "navd88StageFt": 1.282012604,
+        "mllwStageFt": 3.942012604
       },
       {
         "timeUtc": "2026-11-28T04:00:00Z",
-        "navd88StageFt": 1.238683367,
-        "mllwStageFt": 3.898683367
+        "navd88StageFt": 1.398622578,
+        "mllwStageFt": 4.058622578
       },
       {
         "timeUtc": "2026-11-28T05:00:00Z",
-        "navd88StageFt": 0.854101352,
-        "mllwStageFt": 3.514101352
+        "navd88StageFt": 1.016093619,
+        "mllwStageFt": 3.676093619
       },
       {
         "timeUtc": "2026-11-28T06:00:00Z",
-        "navd88StageFt": 0.074425057,
-        "mllwStageFt": 2.734425057
+        "navd88StageFt": 0.230330051,
+        "mllwStageFt": 2.890330051
       },
       {
         "timeUtc": "2026-11-28T07:00:00Z",
-        "navd88StageFt": -0.793680685,
-        "mllwStageFt": 1.866319315
+        "navd88StageFt": -0.624592231,
+        "mllwStageFt": 2.035407769
       },
       {
         "timeUtc": "2026-11-28T08:00:00Z",
-        "navd88StageFt": -1.635077366,
-        "mllwStageFt": 1.024922634
+        "navd88StageFt": -1.479746437,
+        "mllwStageFt": 1.180253563
       },
       {
         "timeUtc": "2026-11-28T09:00:00Z",
-        "navd88StageFt": -2.324208836,
-        "mllwStageFt": 0.335791164
+        "navd88StageFt": -2.179549831,
+        "mllwStageFt": 0.480450169
       },
       {
         "timeUtc": "2026-11-28T10:00:00Z",
-        "navd88StageFt": -2.46406378,
-        "mllwStageFt": 0.19593622
+        "navd88StageFt": -2.327991161,
+        "mllwStageFt": 0.332008839
       },
       {
         "timeUtc": "2026-11-28T11:00:00Z",
-        "navd88StageFt": -1.745901113,
-        "mllwStageFt": 0.914098887
+        "navd88StageFt": -1.616179142,
+        "mllwStageFt": 1.043820858
       },
       {
         "timeUtc": "2026-11-28T12:00:00Z",
-        "navd88StageFt": -0.661400507,
-        "mllwStageFt": 1.998599493
+        "navd88StageFt": -0.517681985,
+        "mllwStageFt": 2.142318015
       },
       {
         "timeUtc": "2026-11-28T13:00:00Z",
-        "navd88StageFt": 0.498567462,
-        "mllwStageFt": 3.158567462
+        "navd88StageFt": 0.634895635,
+        "mllwStageFt": 3.294895635
       },
       {
         "timeUtc": "2026-11-28T14:00:00Z",
-        "navd88StageFt": 1.570313243,
-        "mllwStageFt": 4.230313243
+        "navd88StageFt": 1.714159856,
+        "mllwStageFt": 4.374159856
       },
       {
         "timeUtc": "2026-11-28T15:00:00Z",
-        "navd88StageFt": 2.338991511,
-        "mllwStageFt": 4.998991511
+        "navd88StageFt": 2.489177012,
+        "mllwStageFt": 5.149177012
       },
       {
         "timeUtc": "2026-11-28T16:00:00Z",
-        "navd88StageFt": 2.663340458,
-        "mllwStageFt": 5.323340458
+        "navd88StageFt": 2.78613595,
+        "mllwStageFt": 5.44613595
       },
       {
         "timeUtc": "2026-11-28T17:00:00Z",
-        "navd88StageFt": 2.493284282,
-        "mllwStageFt": 5.153284282
+        "navd88StageFt": 2.599051868,
+        "mllwStageFt": 5.259051868
       },
       {
         "timeUtc": "2026-11-28T18:00:00Z",
-        "navd88StageFt": 1.663782418,
-        "mllwStageFt": 4.323782418
+        "navd88StageFt": 1.775547923,
+        "mllwStageFt": 4.435547923
       },
       {
         "timeUtc": "2026-11-28T19:00:00Z",
-        "navd88StageFt": 0.624466738,
-        "mllwStageFt": 3.284466738
+        "navd88StageFt": 0.748888625,
+        "mllwStageFt": 3.408888625
       },
       {
         "timeUtc": "2026-11-28T20:00:00Z",
-        "navd88StageFt": -0.546192256,
-        "mllwStageFt": 2.113807744
+        "navd88StageFt": -0.430895218,
+        "mllwStageFt": 2.229104782
       },
       {
         "timeUtc": "2026-11-28T21:00:00Z",
-        "navd88StageFt": -1.744840524,
-        "mllwStageFt": 0.915159476
+        "navd88StageFt": -1.639671047,
+        "mllwStageFt": 1.020328953
       },
       {
         "timeUtc": "2026-11-28T22:00:00Z",
-        "navd88StageFt": -2.601355673,
-        "mllwStageFt": 0.058644327
+        "navd88StageFt": -2.49124904,
+        "mllwStageFt": 0.16875096
       },
       {
         "timeUtc": "2026-11-28T23:00:00Z",
-        "navd88StageFt": -2.784987987,
-        "mllwStageFt": -0.124987987
+        "navd88StageFt": -2.679724322,
+        "mllwStageFt": -0.019724322
       },
       {
         "timeUtc": "2026-11-29T00:00:00Z",
-        "navd88StageFt": -2.131894076,
-        "mllwStageFt": 0.528105924
+        "navd88StageFt": -2.017082081,
+        "mllwStageFt": 0.642917919
       },
       {
         "timeUtc": "2026-11-29T01:00:00Z",
-        "navd88StageFt": -1.226594023,
-        "mllwStageFt": 1.433405977
+        "navd88StageFt": -1.08952883,
+        "mllwStageFt": 1.57047117
       },
       {
         "timeUtc": "2026-11-29T02:00:00Z",
-        "navd88StageFt": -0.314736191,
-        "mllwStageFt": 2.345263809
+        "navd88StageFt": -0.188931718,
+        "mllwStageFt": 2.471068282
       },
       {
         "timeUtc": "2026-11-29T03:00:00Z",
-        "navd88StageFt": 0.568642292,
-        "mllwStageFt": 3.228642292
+        "navd88StageFt": 0.693755952,
+        "mllwStageFt": 3.353755952
       },
       {
         "timeUtc": "2026-11-29T04:00:00Z",
-        "navd88StageFt": 1.126977333,
-        "mllwStageFt": 3.786977333
+        "navd88StageFt": 1.219430343,
+        "mllwStageFt": 3.879430343
       },
       {
         "timeUtc": "2026-11-29T05:00:00Z",
-        "navd88StageFt": 1.12772991,
-        "mllwStageFt": 3.78772991
+        "navd88StageFt": 1.248335555,
+        "mllwStageFt": 3.908335555
       },
       {
         "timeUtc": "2026-11-29T06:00:00Z",
-        "navd88StageFt": 0.537555575,
-        "mllwStageFt": 3.197555575
+        "navd88StageFt": 0.643519922,
+        "mllwStageFt": 3.303519922
       },
       {
         "timeUtc": "2026-11-29T07:00:00Z",
-        "navd88StageFt": -0.236143203,
-        "mllwStageFt": 2.423856797
+        "navd88StageFt": -0.141590824,
+        "mllwStageFt": 2.518409176
       },
       {
         "timeUtc": "2026-11-29T08:00:00Z",
-        "navd88StageFt": -1.108920862,
-        "mllwStageFt": 1.551079138
+        "navd88StageFt": -0.998455825,
+        "mllwStageFt": 1.661544175
       },
       {
         "timeUtc": "2026-11-29T09:00:00Z",
-        "navd88StageFt": -1.978650088,
-        "mllwStageFt": 0.681349912
+        "navd88StageFt": -1.877371264,
+        "mllwStageFt": 0.782628736
       },
       {
         "timeUtc": "2026-11-29T10:00:00Z",
-        "navd88StageFt": -2.578053665,
-        "mllwStageFt": 0.081946335
+        "navd88StageFt": -2.482955377,
+        "mllwStageFt": 0.177044623
       },
       {
         "timeUtc": "2026-11-29T11:00:00Z",
-        "navd88StageFt": -2.553547761,
-        "mllwStageFt": 0.106452239
+        "navd88StageFt": -2.449229797,
+        "mllwStageFt": 0.210770203
       },
       {
         "timeUtc": "2026-11-29T12:00:00Z",
-        "navd88StageFt": -1.756339708,
-        "mllwStageFt": 0.903660292
+        "navd88StageFt": -1.647568706,
+        "mllwStageFt": 1.012431294
       },
       {
         "timeUtc": "2026-11-29T13:00:00Z",
-        "navd88StageFt": -0.747268138,
-        "mllwStageFt": 1.912731862
+        "navd88StageFt": -0.635170107,
+        "mllwStageFt": 2.024829893
       },
       {
         "timeUtc": "2026-11-29T14:00:00Z",
-        "navd88StageFt": 0.314596374,
-        "mllwStageFt": 2.974596374
+        "navd88StageFt": 0.419437857,
+        "mllwStageFt": 3.079437857
       },
       {
         "timeUtc": "2026-11-29T15:00:00Z",
-        "navd88StageFt": 1.397889757,
-        "mllwStageFt": 4.057889757
+        "navd88StageFt": 1.520754284,
+        "mllwStageFt": 4.180754284
       },
       {
         "timeUtc": "2026-11-29T16:00:00Z",
-        "navd88StageFt": 2.196785062,
-        "mllwStageFt": 4.856785062
+        "navd88StageFt": 2.321317834,
+        "mllwStageFt": 4.981317834
       },
       {
         "timeUtc": "2026-11-29T17:00:00Z",
-        "navd88StageFt": 2.520050031,
-        "mllwStageFt": 5.180050031
+        "navd88StageFt": 2.650677401,
+        "mllwStageFt": 5.310677401
       },
       {
         "timeUtc": "2026-11-29T18:00:00Z",
-        "navd88StageFt": 2.253027735,
-        "mllwStageFt": 4.913027735
+        "navd88StageFt": 2.392771672,
+        "mllwStageFt": 5.052771672
       },
       {
         "timeUtc": "2026-11-29T19:00:00Z",
-        "navd88StageFt": 1.514900476,
-        "mllwStageFt": 4.174900476
+        "navd88StageFt": 1.66046105,
+        "mllwStageFt": 4.32046105
       },
       {
         "timeUtc": "2026-11-29T20:00:00Z",
-        "navd88StageFt": 0.552353845,
-        "mllwStageFt": 3.212353845
+        "navd88StageFt": 0.704553065,
+        "mllwStageFt": 3.364553065
       },
       {
         "timeUtc": "2026-11-29T21:00:00Z",
-        "navd88StageFt": -0.49327107,
-        "mllwStageFt": 2.16672893
+        "navd88StageFt": -0.343749316,
+        "mllwStageFt": 2.316250684
       },
       {
         "timeUtc": "2026-11-29T22:00:00Z",
-        "navd88StageFt": -1.483634068,
-        "mllwStageFt": 1.176365932
+        "navd88StageFt": -1.350143567,
+        "mllwStageFt": 1.309856433
       },
       {
         "timeUtc": "2026-11-29T23:00:00Z",
-        "navd88StageFt": -2.160925942,
-        "mllwStageFt": 0.499074058
+        "navd88StageFt": -2.026810752,
+        "mllwStageFt": 0.633189248
       },
       {
         "timeUtc": "2026-11-30T00:00:00Z",
-        "navd88StageFt": -2.116824374,
-        "mllwStageFt": 0.543175626
+        "navd88StageFt": -1.969556214,
+        "mllwStageFt": 0.690443786
       },
       {
         "timeUtc": "2026-11-30T01:00:00Z",
-        "navd88StageFt": -1.379875608,
-        "mllwStageFt": 1.280124392
+        "navd88StageFt": -1.231609986,
+        "mllwStageFt": 1.428390014
       },
       {
         "timeUtc": "2026-11-30T02:00:00Z",
-        "navd88StageFt": -0.431641541,
-        "mllwStageFt": 2.228358459
+        "navd88StageFt": -0.300301082,
+        "mllwStageFt": 2.359698918
       },
       {
         "timeUtc": "2026-11-30T03:00:00Z",
-        "navd88StageFt": 0.529065167,
-        "mllwStageFt": 3.189065167
+        "navd88StageFt": 0.683044788,
+        "mllwStageFt": 3.343044788
       },
       {
         "timeUtc": "2026-11-30T04:00:00Z",
-        "navd88StageFt": 1.38505988,
-        "mllwStageFt": 4.04505988
+        "navd88StageFt": 1.551998831,
+        "mllwStageFt": 4.211998831
       },
       {
         "timeUtc": "2026-11-30T05:00:00Z",
-        "navd88StageFt": 1.904568333,
-        "mllwStageFt": 4.564568333
+        "navd88StageFt": 2.066257273,
+        "mllwStageFt": 4.726257273
       },
       {
         "timeUtc": "2026-11-30T06:00:00Z",
-        "navd88StageFt": 1.904703424,
-        "mllwStageFt": 4.564703424
+        "navd88StageFt": 2.0779839,
+        "mllwStageFt": 4.7379839
       },
       {
         "timeUtc": "2026-11-30T07:00:00Z",
-        "navd88StageFt": 1.447991691,
-        "mllwStageFt": 4.107991691
+        "navd88StageFt": 1.643229506,
+        "mllwStageFt": 4.303229506
       },
       {
         "timeUtc": "2026-11-30T08:00:00Z",
-        "navd88StageFt": 0.695466251,
-        "mllwStageFt": 3.355466251
+        "navd88StageFt": 0.899266814,
+        "mllwStageFt": 3.559266814
       },
       {
         "timeUtc": "2026-11-30T09:00:00Z",
-        "navd88StageFt": -0.146167697,
-        "mllwStageFt": 2.513832303
+        "navd88StageFt": 0.053360317,
+        "mllwStageFt": 2.713360317
       },
       {
         "timeUtc": "2026-11-30T10:00:00Z",
-        "navd88StageFt": -0.978533111,
-        "mllwStageFt": 1.681466889
+        "navd88StageFt": -0.782631187,
+        "mllwStageFt": 1.877368813
       },
       {
         "timeUtc": "2026-11-30T11:00:00Z",
-        "navd88StageFt": -1.542316806,
-        "mllwStageFt": 1.117683194
+        "navd88StageFt": -1.360139302,
+        "mllwStageFt": 1.299860698
       },
       {
         "timeUtc": "2026-11-30T12:00:00Z",
-        "navd88StageFt": -1.577774076,
-        "mllwStageFt": 1.082225924
+        "navd88StageFt": -1.443597058,
+        "mllwStageFt": 1.216402942
       },
       {
         "timeUtc": "2026-11-30T13:00:00Z",
-        "navd88StageFt": -1.09752408,
-        "mllwStageFt": 1.56247592
+        "navd88StageFt": -1.02009443,
+        "mllwStageFt": 1.63990557
       },
       {
         "timeUtc": "2026-11-30T14:00:00Z",
-        "navd88StageFt": -0.406989156,
-        "mllwStageFt": 2.253010844
+        "navd88StageFt": -0.403826615,
+        "mllwStageFt": 2.256173385
       },
       {
         "timeUtc": "2026-11-30T15:00:00Z",
-        "navd88StageFt": 0.415960207,
-        "mllwStageFt": 3.075960207
+        "navd88StageFt": 0.358762378,
+        "mllwStageFt": 3.018762378
       },
       {
         "timeUtc": "2026-11-30T16:00:00Z",
-        "navd88StageFt": 1.274140121,
-        "mllwStageFt": 3.934140121
+        "navd88StageFt": 1.147086557,
+        "mllwStageFt": 3.807086557
       },
       {
         "timeUtc": "2026-11-30T17:00:00Z",
-        "navd88StageFt": 1.935367806,
-        "mllwStageFt": 4.595367806
+        "navd88StageFt": 1.737150136,
+        "mllwStageFt": 4.397150136
       },
       {
         "timeUtc": "2026-11-30T18:00:00Z",
-        "navd88StageFt": 2.143791236,
-        "mllwStageFt": 4.803791236
+        "navd88StageFt": 1.911219898,
+        "mllwStageFt": 4.571219898
       },
       {
         "timeUtc": "2026-11-30T19:00:00Z",
-        "navd88StageFt": 1.781280644,
-        "mllwStageFt": 4.441280644
+        "navd88StageFt": 1.563644816,
+        "mllwStageFt": 4.223644816
       },
       {
         "timeUtc": "2026-11-30T20:00:00Z",
-        "navd88StageFt": 1.007121837,
-        "mllwStageFt": 3.667121837
+        "navd88StageFt": 0.820360358,
+        "mllwStageFt": 3.480360358
       },
       {
         "timeUtc": "2026-11-30T21:00:00Z",
-        "navd88StageFt": 0.092648525,
-        "mllwStageFt": 2.752648525
+        "navd88StageFt": -0.083505629,
+        "mllwStageFt": 2.576494371
       },
       {
         "timeUtc": "2026-11-30T22:00:00Z",
-        "navd88StageFt": -0.916692826,
-        "mllwStageFt": 1.743307174
+        "navd88StageFt": -1.064084447,
+        "mllwStageFt": 1.595915553
       },
       {
         "timeUtc": "2026-11-30T23:00:00Z",
-        "navd88StageFt": -1.860534235,
-        "mllwStageFt": 0.799465765
+        "navd88StageFt": -1.991041492,
+        "mllwStageFt": 0.668958508
       },
       {
         "timeUtc": "2026-12-01T00:00:00Z",
-        "navd88StageFt": -2.46232104,
-        "mllwStageFt": 0.19767896
+        "navd88StageFt": -2.57802035,
+        "mllwStageFt": 0.08197965
       },
       {
         "timeUtc": "2026-12-01T01:00:00Z",
-        "navd88StageFt": -2.510030751,
-        "mllwStageFt": 0.149969249
+        "navd88StageFt": -2.60538302,
+        "mllwStageFt": 0.05461698
       },
       {
         "timeUtc": "2026-12-01T02:00:00Z",
-        "navd88StageFt": -1.945944367,
-        "mllwStageFt": 0.714055633
+        "navd88StageFt": -2.035557956,
+        "mllwStageFt": 0.624442044
+      },
+      {
+        "timeUtc": "2026-12-01T03:00:00Z",
+        "navd88StageFt": -1.211266067,
+        "mllwStageFt": 1.448733933
+      },
+      {
+        "timeUtc": "2026-12-01T04:00:00Z",
+        "navd88StageFt": -0.322731831,
+        "mllwStageFt": 2.337268169
+      },
+      {
+        "timeUtc": "2026-12-01T05:00:00Z",
+        "navd88StageFt": 0.492776052,
+        "mllwStageFt": 3.152776052
+      },
+      {
+        "timeUtc": "2026-12-01T06:00:00Z",
+        "navd88StageFt": 0.963898025,
+        "mllwStageFt": 3.623898025
+      },
+      {
+        "timeUtc": "2026-12-01T07:00:00Z",
+        "navd88StageFt": 0.986421286,
+        "mllwStageFt": 3.646421286
+      },
+      {
+        "timeUtc": "2026-12-01T08:00:00Z",
+        "navd88StageFt": 0.550974281,
+        "mllwStageFt": 3.210974281
+      },
+      {
+        "timeUtc": "2026-12-01T09:00:00Z",
+        "navd88StageFt": -0.131150685,
+        "mllwStageFt": 2.528849315
       }
     ]
   }
