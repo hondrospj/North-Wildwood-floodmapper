@@ -1,6 +1,6 @@
 {
   "schema": "north-wildwood-city-gauge-index-v1",
-  "generatedAt": "2026-11-26T14:47:40.846Z",
+  "generatedAt": "2026-11-27T14:47:44.831Z",
   "sensor": {
     "id": 1005,
     "name": "North Wildwood Tide",
@@ -15,14 +15,14 @@
     "owner": "City of North Wildwood",
     "system": "Datawise municipal weather station",
     "endpoint": "http://173.15.136.30/datawise/DashBoards/getSingleSensorData.php",
-    "retrievedAt": "2026-11-26T14:45:12.606Z",
+    "retrievedAt": "2026-11-27T14:45:13.529Z",
     "datumConversionSource": "https://ready.northwildwood.com/wp-content/uploads/2021/02/2021-OEM-NGVD88-MLLW-reference-1.pdf"
   },
   "coverage": {
     "firstTimestamp": "2017-09-01 08:58:00",
-    "lastTimestamp": "2026-09-23 00:33:06",
-    "recordCount": 1313266,
-    "usableRecordCount": 1313266,
+    "lastTimestamp": "2026-10-02 03:03:07",
+    "recordCount": 1317654,
+    "usableRecordCount": 1317654,
     "flaggedRecordCount": 0,
     "duplicateTimestampRows": 39
   },
@@ -239,9 +239,9 @@
       "year": 2026,
       "path": "data/2026.json",
       "firstTimestamp": "2026-01-01 00:00:15",
-      "lastTimestamp": "2026-09-23 00:33:06",
-      "recordCount": 59075,
-      "usableRecordCount": 59075,
+      "lastTimestamp": "2026-10-02 03:03:07",
+      "recordCount": 63463,
+      "usableRecordCount": 63463,
       "flaggedRecordCount": 0,
       "duplicateTimestampRows": 0
     }
